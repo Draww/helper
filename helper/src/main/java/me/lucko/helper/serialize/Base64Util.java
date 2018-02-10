@@ -23,50 +23,31 @@
  *  SOFTWARE.
  */
 
-package me.lucko.helper.js.loader;
+package me.lucko.helper.serialize;
 
-import me.lucko.helper.js.script.Script;
+import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Base64;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+class Base64Util {
 
-class SimpleScriptRegistry implements ScriptRegistry {
-
-    private Map<Path, Script> scripts = new HashMap<>();
-
-    @Override
-    public void register(@Nonnull Script script) {
-        scripts.put(script.getPath(), script);
+    public static String encode(byte[] buf) {
+        return Base64.getEncoder().encodeToString(buf);
     }
 
-    @Override
-    public void unregister(@Nonnull Script script) {
-        scripts.remove(script.getPath());
-    }
-
-    @Nullable
-    @Override
-    public Script getScript(@Nonnull Path path) {
-        return scripts.get(path);
-    }
-
-    @Nonnull
-    @Override
-    public Map<Path, Script> getAll() {
-        return Collections.unmodifiableMap(scripts);
-    }
-
-    @Override
-    public boolean terminate() {
-        for (Script script : scripts.values()) {
-            script.terminate();
+    public static byte[] decode(String src) {
+        try {
+            return Base64.getDecoder().decode(src);
+        } catch (IllegalArgumentException e) {
+            // compat with the previously used base64 encoder
+            try {
+                return Base64Coder.decodeLines(src);
+            } catch (Exception ignored) {
+                throw e;
+            }
         }
-        return true;
     }
+
+    private Base64Util() {}
 
 }
