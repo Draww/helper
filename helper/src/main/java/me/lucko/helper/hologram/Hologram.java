@@ -25,30 +25,20 @@
 
 package me.lucko.helper.hologram;
 
-import com.google.common.base.Preconditions;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 
+import me.lucko.helper.Services;
 import me.lucko.helper.gson.GsonSerializable;
 import me.lucko.helper.serialize.Position;
-import me.lucko.helper.terminable.Terminable;
 
-import org.bukkit.entity.Player;
-
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * A simple hologram utility.
- *
- * Should only be used from the server thread.
  */
-public interface Hologram extends Terminable, GsonSerializable {
+public interface Hologram extends BaseHologram, GsonSerializable {
 
     /**
      * Creates and returns a new hologram
@@ -61,49 +51,12 @@ public interface Hologram extends Terminable, GsonSerializable {
      */
     @Nonnull
     static Hologram create(@Nonnull Position position, @Nonnull List<String> lines) {
-        return new SimpleHologram(position, lines);
+        return Services.load(HologramFactory.class).newHologram(position, lines);
     }
 
     static Hologram deserialize(JsonElement element) {
-        Preconditions.checkArgument(element.isJsonObject());
-        JsonObject object = element.getAsJsonObject();
-
-        Preconditions.checkArgument(object.has("position"));
-        Preconditions.checkArgument(object.has("lines"));
-
-        Position position = Position.deserialize(object.get("position"));
-        JsonArray lineArray = object.get("lines").getAsJsonArray();
-        List<String> lines = new ArrayList<>();
-        for (JsonElement e : lineArray) {
-            lines.add(e.getAsString());
-        }
-
-        return create(position, lines);
+        return Services.load(HologramFactory.class).deserialize(element);
     }
-
-    /**
-     * Spawns the hologram
-     */
-    void spawn();
-
-    /**
-     * Despawns the hologram
-     */
-    void despawn();
-
-    /**
-     * Check if the hologram is currently spawned
-     *
-     * @return true if spawned and active, or false otherwise
-     */
-    boolean isSpawned();
-
-    /**
-     * Updates the position of the hologram and respawns it
-     *
-     * @param position the new position
-     */
-    void updatePosition(@Nonnull Position position);
 
     /**
      * Updates the lines displayed by this hologram
@@ -114,12 +67,5 @@ public interface Hologram extends Terminable, GsonSerializable {
      * @param lines the new lines
      */
     void updateLines(@Nonnull List<String> lines);
-
-    /**
-     * Sets a click callback for this hologram
-     *
-     * @param clickCallback the click callback, or null to unregister any existing callback
-     */
-    void setClickCallback(@Nullable Consumer<Player> clickCallback);
 
 }

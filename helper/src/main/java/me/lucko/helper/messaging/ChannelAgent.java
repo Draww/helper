@@ -77,4 +77,6 @@ public interface ChannelAgent<T> extends Terminable {
      */
     boolean removeListener(@Nonnull ChannelListener<T> listener);
 
+    @Override
+    void close();
 }

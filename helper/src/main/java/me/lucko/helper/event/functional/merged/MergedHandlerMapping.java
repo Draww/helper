@@ -41,10 +41,10 @@ class MergedHandlerMapping<T, E extends Event> {
     }
 
     public Function<Object, T> getFunction() {
-        return function;
+        return this.function;
     }
 
     public EventPriority getPriority() {
-        return priority;
+        return this.priority;
     }
 }

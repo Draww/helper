@@ -25,7 +25,6 @@
 
 package me.lucko.helper.serialize;
 
-import com.google.common.base.Preconditions;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -34,6 +33,8 @@ import me.lucko.helper.gson.GsonSerializable;
 import me.lucko.helper.gson.JsonBuilder;
 
 import org.bukkit.Location;
+
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,13 +51,13 @@ public final class Point implements GsonSerializable {
     }
 
     public static Point of(Position position, Direction direction) {
-        Preconditions.checkNotNull(position, "position");
-        Preconditions.checkNotNull(direction, "direction");
+        Objects.requireNonNull(position, "position");
+        Objects.requireNonNull(direction, "direction");
         return new Point(position, direction);
     }
 
     public static Point of(Location location) {
-        Preconditions.checkNotNull(location, "location");
+        Objects.requireNonNull(location, "location");
         return of(Position.of(location), Direction.from(location));
     }
 
@@ -72,19 +73,19 @@ public final class Point implements GsonSerializable {
     }
 
     public Position getPosition() {
-        return position;
+        return this.position;
     }
 
     public Direction getDirection() {
-        return direction;
+        return this.direction;
     }
 
     public synchronized Location toLocation() {
-        if (bukkitLocation == null) {
-            bukkitLocation = new Location(Helper.worldNullable(position.getWorld()), position.getX(), position.getY(), position.getZ(), direction.getYaw(), direction.getPitch());
+        if (this.bukkitLocation == null) {
+            this.bukkitLocation = new Location(Helper.worldNullable(this.position.getWorld()), this.position.getX(), this.position.getY(), this.position.getZ(), this.direction.getYaw(), this.direction.getPitch());
         }
 
-        return bukkitLocation.clone();
+        return this.bukkitLocation.clone();
     }
 
     public VectorPoint toVectorPoint() {
@@ -92,19 +93,19 @@ public final class Point implements GsonSerializable {
     }
 
     public Point add(double x, double y, double z) {
-        return position.add(x, y, z).withDirection(direction);
+        return this.position.add(x, y, z).withDirection(this.direction);
     }
 
     public Point subtract(double x, double y, double z) {
-        return position.subtract(x, y, z).withDirection(direction);
+        return this.position.subtract(x, y, z).withDirection(this.direction);
     }
 
     @Nonnull
     @Override
     public JsonObject serialize() {
         return JsonBuilder.object()
-                .addAll(position.serialize())
-                .addAll(direction.serialize())
+                .addAll(this.position.serialize())
+                .addAll(this.direction.serialize())
                 .build();
     }
 

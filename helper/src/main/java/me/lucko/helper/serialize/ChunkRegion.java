@@ -32,6 +32,8 @@ import com.google.gson.JsonObject;
 import me.lucko.helper.gson.GsonSerializable;
 import me.lucko.helper.gson.JsonBuilder;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -52,8 +54,8 @@ public final class ChunkRegion implements GsonSerializable {
     }
 
     public static ChunkRegion of(ChunkPosition a, ChunkPosition b) {
-        Preconditions.checkNotNull(a, "a");
-        Preconditions.checkNotNull(b, "b");
+        Objects.requireNonNull(a, "a");
+        Objects.requireNonNull(b, "b");
 
         if (!a.getWorld().equals(b.getWorld())) {
             throw new IllegalArgumentException("positions are in different worlds");
@@ -69,21 +71,21 @@ public final class ChunkRegion implements GsonSerializable {
     private final int depth;
 
     private ChunkRegion(ChunkPosition a, ChunkPosition b) {
-        min = ChunkPosition.of(Math.min(a.getX(), b.getX()), Math.min(a.getZ(), b.getZ()), a.getWorld());
-        max = ChunkPosition.of(Math.max(a.getX(), b.getX()), Math.max(a.getZ(), b.getZ()), a.getWorld());
+        this.min = ChunkPosition.of(Math.min(a.getX(), b.getX()), Math.min(a.getZ(), b.getZ()), a.getWorld());
+        this.max = ChunkPosition.of(Math.max(a.getX(), b.getX()), Math.max(a.getZ(), b.getZ()), a.getWorld());
 
-        width = max.getX() - min.getX();
-        depth = max.getZ() - min.getZ();
+        this.width = this.max.getX() - this.min.getX();
+        this.depth = this.max.getZ() - this.min.getZ();
     }
 
     public boolean inRegion(ChunkPosition pos) {
-        Preconditions.checkNotNull(pos, "pos");
-        return pos.getWorld().equals(min.getWorld()) && inRegion(pos.getX(), pos.getZ());
+        Objects.requireNonNull(pos, "pos");
+        return pos.getWorld().equals(this.min.getWorld()) && inRegion(pos.getX(), pos.getZ());
     }
 
     public boolean inRegion(int x, int z) {
-        return x >= min.getX() && x <= max.getX()
-                && z >= min.getZ() && z <= max.getZ();
+        return x >= this.min.getX() && x <= this.max.getX()
+                && z >= this.min.getZ() && z <= this.max.getZ();
     }
 
     public ChunkPosition getMin() {
@@ -106,8 +108,8 @@ public final class ChunkRegion implements GsonSerializable {
     @Override
     public JsonObject serialize() {
         return JsonBuilder.object()
-                .add("min", min)
-                .add("max", max)
+                .add("min", this.min)
+                .add("max", this.max)
                 .build();
     }
 

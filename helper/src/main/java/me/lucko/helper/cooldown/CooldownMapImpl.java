@@ -31,7 +31,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
 import java.util.Map;
-import java.util.OptionalLong;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -57,76 +57,24 @@ class CooldownMapImpl<T> implements CooldownMap<T> {
     @Nonnull
     @Override
     public Cooldown getBase() {
-        return base;
+        return this.base;
     }
 
-    /**
-     * Gets the internal cooldown instance associated with the given key
-     *
-     * <p>The inline Cooldown methods in this class should be used to access the functionality of the cooldown as opposed
-     * to calling the methods directly via the instance returned by this method.</p>
-     *
-     * @param key the key
-     * @return a cooldown instance
-     */
     @Nonnull
     public Cooldown get(@Nonnull T key) {
-        Preconditions.checkNotNull(key, "key");
-        return cache.getUnchecked(key);
+        Objects.requireNonNull(key, "key");
+        return this.cache.getUnchecked(key);
     }
 
     @Override
     public void put(@Nonnull T key, @Nonnull Cooldown cooldown) {
-        Preconditions.checkNotNull(key, "key");
-        Preconditions.checkArgument(cooldown.getTimeout() == base.getTimeout(), "different timeout");
-        cache.put(key, cooldown);
+        Objects.requireNonNull(key, "key");
+        Preconditions.checkArgument(cooldown.getTimeout() == this.base.getTimeout(), "different timeout");
+        this.cache.put(key, cooldown);
     }
 
-    /**
-     * Gets the cooldowns contained within this collection.
-     *
-     * @return the backing map
-     */
     @Nonnull
     public Map<T, Cooldown> getAll() {
-        return cache.asMap();
-    }
-
-    /* methods from Cooldown */
-
-    @Override
-    public boolean test(@Nonnull T key) {
-        return get(key).test();
-    }
-
-    @Override
-    public boolean testSilently(@Nonnull T key) {
-        return get(key).testSilently();
-    }
-
-    @Override
-    public long elapsed(@Nonnull T key) {
-        return get(key).elapsed();
-    }
-
-    @Override
-    public void reset(@Nonnull T key) {
-        get(key).reset();
-    }
-
-    @Override
-    public long remainingMillis(@Nonnull T key) {
-        return get(key).remainingMillis();
-    }
-
-    @Override
-    public long remainingTime(@Nonnull T key, @Nonnull TimeUnit unit) {
-        return get(key).remainingTime(unit);
-    }
-
-    @Nonnull
-    @Override
-    public OptionalLong getLastTested(@Nonnull T key) {
-        return get(key).getLastTested();
+        return this.cache.asMap();
     }
 }

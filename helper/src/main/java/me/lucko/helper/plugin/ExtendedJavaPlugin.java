@@ -25,15 +25,13 @@
 
 package me.lucko.helper.plugin;
 
-import com.google.common.base.Preconditions;
-
-import me.lucko.helper.Scheduler;
-import me.lucko.helper.config.Configs;
+import me.lucko.helper.Schedulers;
+import me.lucko.helper.Services;
+import me.lucko.helper.config.ConfigFactory;
 import me.lucko.helper.internal.LoaderUtils;
 import me.lucko.helper.maven.LibraryLoader;
-import me.lucko.helper.terminable.Terminable;
 import me.lucko.helper.terminable.composite.CompositeTerminable;
-import me.lucko.helper.terminable.registry.TerminableRegistry;
+import me.lucko.helper.terminable.module.TerminableModule;
 import me.lucko.helper.utils.CommandMapUtil;
 
 import org.bukkit.command.CommandExecutor;
@@ -45,6 +43,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import ninja.leaping.configurate.ConfigurationNode;
 
 import java.io.File;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -56,7 +55,7 @@ import javax.annotation.Nullable;
 public class ExtendedJavaPlugin extends JavaPlugin implements HelperPlugin {
 
     // the backing terminable registry
-    private TerminableRegistry terminableRegistry;
+    private CompositeTerminable terminableRegistry;
 
     // Used by subclasses to perform logic for plugin load/enable/disable.
     protected void load() {}
@@ -66,7 +65,7 @@ public class ExtendedJavaPlugin extends JavaPlugin implements HelperPlugin {
     @Override
     public final void onLoad() {
         LoaderUtils.getPlugin(); // cache the loader plugin & run initial setup
-        terminableRegistry = TerminableRegistry.create();
+        this.terminableRegistry = CompositeTerminable.create();
 
         LibraryLoader.loadAll(getClass());
 
@@ -77,12 +76,12 @@ public class ExtendedJavaPlugin extends JavaPlugin implements HelperPlugin {
     @Override
     public final void onEnable() {
         // schedule cleanup of the registry
-        Scheduler.builder()
+        Schedulers.builder()
                 .async()
                 .after(10, TimeUnit.SECONDS)
                 .every(30, TimeUnit.SECONDS)
-                .run(terminableRegistry::cleanup)
-                .bindWith(terminableRegistry);
+                .run(this.terminableRegistry::cleanup)
+                .bindWith(this.terminableRegistry);
 
         // call subclass
         enable();
@@ -95,31 +94,25 @@ public class ExtendedJavaPlugin extends JavaPlugin implements HelperPlugin {
         disable();
 
         // terminate the registry
-        terminableRegistry.terminate();
+        this.terminableRegistry.closeAndReportException();
     }
 
     @Nonnull
     @Override
-    public <T extends Terminable> T bind(@Nonnull T terminable) {
-        return terminableRegistry.bind(terminable);
+    public <T extends AutoCloseable> T bind(@Nonnull T terminable) {
+        return this.terminableRegistry.bind(terminable);
     }
 
     @Nonnull
     @Override
-    public <T extends Runnable> T bindRunnable(@Nonnull T runnable) {
-        return terminableRegistry.bindRunnable(runnable);
-    }
-
-    @Nonnull
-    @Override
-    public <T extends CompositeTerminable> T bindComposite(@Nonnull T terminable) {
-        return terminableRegistry.bindComposite(terminable);
+    public <T extends TerminableModule> T bindModule(@Nonnull T module) {
+        return this.terminableRegistry.bindModule(module);
     }
 
     @Nonnull
     @Override
     public <T extends Listener> T registerListener(@Nonnull T listener) {
-        Preconditions.checkNotNull(listener, "listener");
+        Objects.requireNonNull(listener, "listener");
         getServer().getPluginManager().registerEvents(listener, this);
         return listener;
     }
@@ -130,42 +123,48 @@ public class ExtendedJavaPlugin extends JavaPlugin implements HelperPlugin {
         return CommandMapUtil.registerCommand(this, command, aliases);
     }
 
-    @Nullable
+    @Nonnull
     @Override
     public <T> T getService(@Nonnull Class<T> service) {
-        return getServer().getServicesManager().load(service);
+        return Services.load(service);
     }
 
     @Nonnull
     @Override
     public <T> T provideService(@Nonnull Class<T> clazz, @Nonnull T instance, @Nonnull ServicePriority priority) {
-        getServer().getServicesManager().register(clazz, instance, this, priority);
-        return instance;
+        return Services.provide(clazz, instance, this, priority);
     }
 
     @Nonnull
     @Override
     public <T> T provideService(@Nonnull Class<T> clazz, @Nonnull T instance) {
-        Preconditions.checkNotNull(clazz, "clazz");
-        Preconditions.checkNotNull(instance, "instance");
         return provideService(clazz, instance, ServicePriority.Normal);
+    }
+
+    @Override
+    public boolean isPluginPresent(@Nonnull String name) {
+        return getServer().getPluginManager().getPlugin(name) != null;
     }
 
     @SuppressWarnings("unchecked")
     @Nullable
     @Override
     public <T> T getPlugin(@Nonnull String name, @Nonnull Class<T> pluginClass) {
-        Preconditions.checkNotNull(name, "name");
-        Preconditions.checkNotNull(pluginClass, "pluginClass");
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(pluginClass, "pluginClass");
         return (T) getServer().getPluginManager().getPlugin(name);
+    }
+
+    private File getRelativeFile(@Nonnull String name) {
+        getDataFolder().mkdirs();
+        return new File(getDataFolder(), name);
     }
 
     @Nonnull
     @Override
     public File getBundledFile(@Nonnull String name) {
-        Preconditions.checkNotNull(name, "name");
-        getDataFolder().mkdirs();
-        File file = new File(getDataFolder(), name);
+        Objects.requireNonNull(name, "name");
+        File file = getRelativeFile(name);
         if (!file.exists()) {
             saveResource(name, false);
         }
@@ -175,15 +174,25 @@ public class ExtendedJavaPlugin extends JavaPlugin implements HelperPlugin {
     @Nonnull
     @Override
     public YamlConfiguration loadConfig(@Nonnull String file) {
-        Preconditions.checkNotNull(file, "file");
+        Objects.requireNonNull(file, "file");
         return YamlConfiguration.loadConfiguration(getBundledFile(file));
     }
 
     @Nonnull
     @Override
     public ConfigurationNode loadConfigNode(@Nonnull String file) {
-        Preconditions.checkNotNull(file, "file");
-        return Configs.yamlLoad(getBundledFile(file));
+        Objects.requireNonNull(file, "file");
+        return ConfigFactory.yaml().load(getBundledFile(file));
+    }
+
+    @Nonnull
+    @Override
+    public <T> T setupConfig(@Nonnull String file, @Nonnull T configObject) {
+        Objects.requireNonNull(file, "file");
+        Objects.requireNonNull(configObject, "configObject");
+        File f = getRelativeFile(file);
+        ConfigFactory.yaml().load(f, configObject);
+        return configObject;
     }
 
     @Nonnull

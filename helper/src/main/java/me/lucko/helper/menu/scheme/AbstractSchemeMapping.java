@@ -25,12 +25,12 @@
 
 package me.lucko.helper.menu.scheme;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
 import me.lucko.helper.menu.Item;
 
 import java.util.Map;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,19 +47,19 @@ public class AbstractSchemeMapping implements SchemeMapping {
     }
 
     private AbstractSchemeMapping(@Nonnull Map<Integer, Item> mapping) {
-        Preconditions.checkNotNull(mapping, "mapping");
+        Objects.requireNonNull(mapping, "mapping");
         this.mapping = ImmutableMap.copyOf(mapping);
     }
 
     @Override
     @Nullable
     public Item getNullable(int key) {
-        return mapping.get(key);
+        return this.mapping.get(key);
     }
 
     @Override
     public boolean hasMappingFor(int key) {
-        return mapping.containsKey(key);
+        return this.mapping.containsKey(key);
     }
 
     @Nonnull
@@ -70,11 +70,11 @@ public class AbstractSchemeMapping implements SchemeMapping {
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof AbstractSchemeMapping && ((AbstractSchemeMapping) obj).mapping.equals(mapping);
+        return obj instanceof AbstractSchemeMapping && ((AbstractSchemeMapping) obj).mapping.equals(this.mapping);
     }
 
     @Override
     public int hashCode() {
-        return mapping.hashCode();
+        return this.mapping.hashCode();
     }
 }

@@ -25,7 +25,6 @@
 
 package me.lucko.helper.command.functional;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 
@@ -38,6 +37,7 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 @NonnullByDefault
@@ -54,9 +54,9 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
 
     @Override
     public FunctionalCommandBuilder<T> assertPermission(String permission, String failureMessage) {
-        Preconditions.checkNotNull(permission, "permission");
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
-        predicates.add(context -> {
+        Objects.requireNonNull(permission, "permission");
+        Objects.requireNonNull(failureMessage, "failureMessage");
+        this.predicates.add(context -> {
             if (context.sender().hasPermission(permission)) {
                 return true;
             }
@@ -69,8 +69,8 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
 
     @Override
     public FunctionalCommandBuilder<T> assertOp(String failureMessage) {
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
-        predicates.add(context -> {
+        Objects.requireNonNull(failureMessage, "failureMessage");
+        this.predicates.add(context -> {
             if (context.sender().isOp()) {
                 return true;
             }
@@ -83,8 +83,8 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
 
     @Override
     public FunctionalCommandBuilder<Player> assertPlayer(String failureMessage) {
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
-        predicates.add(context -> {
+        Objects.requireNonNull(failureMessage, "failureMessage");
+        this.predicates.add(context -> {
             if (context.sender() instanceof Player) {
                 return true;
             }
@@ -93,13 +93,13 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
             return false;
         });
         // cast the generic type
-        return new FunctionalCommandBuilderImpl<>(predicates);
+        return new FunctionalCommandBuilderImpl<>(this.predicates);
     }
 
     @Override
     public FunctionalCommandBuilder<ConsoleCommandSender> assertConsole(String failureMessage) {
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
-        predicates.add(context -> {
+        Objects.requireNonNull(failureMessage, "failureMessage");
+        this.predicates.add(context -> {
             if (context.sender() instanceof ConsoleCommandSender) {
                 return true;
             }
@@ -108,13 +108,13 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
             return false;
         });
         // cast the generic type
-        return new FunctionalCommandBuilderImpl<>(predicates);
+        return new FunctionalCommandBuilderImpl<>(this.predicates);
     }
 
     @Override
     public FunctionalCommandBuilder<T> assertUsage(String usage, String failureMessage) {
-        Preconditions.checkNotNull(usage, "usage");
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
+        Objects.requireNonNull(usage, "usage");
+        Objects.requireNonNull(failureMessage, "failureMessage");
 
         List<String> usageParts = Splitter.on(" ").splitToList(usage);
 
@@ -127,7 +127,7 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
         }
 
         int finalRequiredArgs = requiredArgs;
-        predicates.add(context -> {
+        this.predicates.add(context -> {
             if (context.args().size() >= finalRequiredArgs) {
                 return true;
             }
@@ -141,9 +141,9 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
 
     @Override
     public FunctionalCommandBuilder<T> assertArgument(int index, Predicate<String> test, String failureMessage) {
-        Preconditions.checkNotNull(test, "test");
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
-        predicates.add(context -> {
+        Objects.requireNonNull(test, "test");
+        Objects.requireNonNull(failureMessage, "failureMessage");
+        this.predicates.add(context -> {
             String arg = context.rawArg(index);
             if (test.test(arg)) {
                 return true;
@@ -157,9 +157,9 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
 
     @Override
     public FunctionalCommandBuilder<T> assertSender(Predicate<T> test, String failureMessage) {
-        Preconditions.checkNotNull(test, "test");
-        Preconditions.checkNotNull(failureMessage, "failureMessage");
-        predicates.add(context -> {
+        Objects.requireNonNull(test, "test");
+        Objects.requireNonNull(failureMessage, "failureMessage");
+        this.predicates.add(context -> {
             //noinspection unchecked
             T sender = (T) context.sender();
             if (test.test(sender)) {
@@ -174,7 +174,7 @@ class FunctionalCommandBuilderImpl<T extends CommandSender> implements Functiona
 
     @Override
     public Command handler(FunctionalCommandHandler handler) {
-        Preconditions.checkNotNull(handler, "handler");
-        return new FunctionalCommand(predicates.build(), handler);
+        Objects.requireNonNull(handler, "handler");
+        return new FunctionalCommand(this.predicates.build(), handler);
     }
 }

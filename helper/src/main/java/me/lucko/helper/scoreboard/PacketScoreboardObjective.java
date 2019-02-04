@@ -31,7 +31,8 @@ import com.comphenix.protocol.wrappers.EnumWrappers.ScoreboardAction;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
-import me.lucko.helper.utils.Color;
+import me.lucko.helper.protocol.Protocol;
+import me.lucko.helper.text.Text;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import org.bukkit.entity.Player;
@@ -43,6 +44,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -65,8 +67,6 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
         return name.length() > MAX_NAME_LENGTH ? name.substring(0, MAX_NAME_LENGTH) : name;
     }
 
-    // the parent scoreboard
-    private final PacketScoreboard scoreboard;
     // the id of this objective
     private final String id;
     // if players should be automatically subscribed
@@ -85,43 +85,40 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
     /**
      * Creates a new scoreboard objective
      *
-     * @param scoreboard the parent scoreboard
      * @param id the id of this objective
      * @param displayName the initial display name
      * @param displaySlot the initial display slot
      * @param autoSubscribe if players should be automatically subscribed
      */
-    public PacketScoreboardObjective(PacketScoreboard scoreboard, String id, String displayName, DisplaySlot displaySlot, boolean autoSubscribe) {
-        Preconditions.checkNotNull(id, "id");
+    public PacketScoreboardObjective(String id, String displayName, DisplaySlot displaySlot, boolean autoSubscribe) {
+        Objects.requireNonNull(id, "id");
         Preconditions.checkArgument(id.length() <= 16, "id cannot be longer than 16 characters");
 
-        this.scoreboard = Preconditions.checkNotNull(scoreboard, "scoreboard");
         this.id = id;
-        this.displayName = trimName(Color.colorize(Preconditions.checkNotNull(displayName, "displayName")));
-        this.displaySlot = Preconditions.checkNotNull(displaySlot, "displaySlot");
+        this.displayName = trimName(Text.colorize(Objects.requireNonNull(displayName, "displayName")));
+        this.displaySlot = Objects.requireNonNull(displaySlot, "displaySlot");
         this.autoSubscribe = autoSubscribe;
     }
 
     /**
      * Creates a new scoreboard objective
      *
-     * @param scoreboard the parent scoreboard
      * @param id the id of this objective
      * @param displayName the initial display name
      * @param displaySlot the initial display slot
      */
-    public PacketScoreboardObjective(PacketScoreboard scoreboard, String id, String displayName, DisplaySlot displaySlot) {
-        this(scoreboard, id, displayName, displaySlot, true);
+    public PacketScoreboardObjective(String id, String displayName, DisplaySlot displaySlot) {
+        this(id, displayName, displaySlot, true);
     }
 
     @Override
     public String getId() {
-        return id;
+        return this.id;
     }
 
     @Override
     public boolean shouldAutoSubscribe() {
-        return autoSubscribe;
+        return this.autoSubscribe;
     }
 
     @Override
@@ -131,98 +128,98 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
 
     @Override
     public String getDisplayName() {
-        return displayName;
+        return this.displayName;
     }
 
     @Override
     public void setDisplayName(String displayName) {
-        Preconditions.checkNotNull(displayName, "displayName");
-        displayName = trimName(Color.colorize(displayName));
+        Objects.requireNonNull(displayName, "displayName");
+        displayName = trimName(Text.colorize(displayName));
         if (this.displayName.equals(displayName)) {
             return;
         }
 
         this.displayName = displayName;
-        scoreboard.broadcastPacket(subscribed, newObjectivePacket(UpdateType.UPDATE));
+        Protocol.broadcastPacket(this.subscribed, newObjectivePacket(UpdateType.UPDATE));
     }
 
     @Override
     public DisplaySlot getDisplaySlot() {
-        return displaySlot;
+        return this.displaySlot;
     }
 
     @Override
     public void setDisplaySlot(DisplaySlot displaySlot) {
-        Preconditions.checkNotNull(displaySlot, "displaySlot");
+        Objects.requireNonNull(displaySlot, "displaySlot");
         if (this.displaySlot == displaySlot) {
             return;
         }
 
         this.displaySlot = displaySlot;
-        scoreboard.broadcastPacket(subscribed, newDisplaySlotPacket(displaySlot));
+        Protocol.broadcastPacket(this.subscribed, newDisplaySlotPacket(displaySlot));
     }
 
     @Override
     public Map<String, Integer> getScores() {
-        return ImmutableMap.copyOf(scores);
+        return ImmutableMap.copyOf(this.scores);
     }
 
     @Override
     public boolean hasScore(String name) {
-        Preconditions.checkNotNull(name, "name");
-        return scores.containsKey(trimScore(Color.colorize(name)));
+        Objects.requireNonNull(name, "name");
+        return this.scores.containsKey(trimScore(Text.colorize(name)));
     }
 
     @Nullable
     @Override
     public Integer getScore(String name) {
-        Preconditions.checkNotNull(name, "name");
-        return scores.get(trimScore(Color.colorize(name)));
+        Objects.requireNonNull(name, "name");
+        return this.scores.get(trimScore(Text.colorize(name)));
     }
 
     @Override
     public void setScore(String name, int value) {
-        Preconditions.checkNotNull(name, "name");
-        name = trimScore(Color.colorize(name));
+        Objects.requireNonNull(name, "name");
+        name = trimScore(Text.colorize(name));
 
-        Integer oldValue = scores.put(name, value);
+        Integer oldValue = this.scores.put(name, value);
         if (oldValue != null && oldValue == value) {
             return;
         }
 
-        scoreboard.broadcastPacket(subscribed, newScorePacket(name, value, ScoreboardAction.CHANGE));
+        Protocol.broadcastPacket(this.subscribed, newScorePacket(name, value, ScoreboardAction.CHANGE));
     }
 
     @Override
     public boolean removeScore(String name) {
-        Preconditions.checkNotNull(name, "name");
-        name = trimScore(Color.colorize(name));
+        Objects.requireNonNull(name, "name");
+        name = trimScore(Text.colorize(name));
 
-        if (scores.remove(name) == null) {
+        if (this.scores.remove(name) == null) {
             return false;
         }
 
-        scoreboard.broadcastPacket(subscribed, newScorePacket(name, 0, ScoreboardAction.REMOVE));
+        Protocol.broadcastPacket(this.subscribed, newScorePacket(name, 0, ScoreboardAction.REMOVE));
         return true;
     }
 
     @Override
     public void clearScores() {
-        scores.clear();
+        this.scores.clear();
 
-        scoreboard.broadcastPacket(subscribed, newObjectivePacket(UpdateType.REMOVE));
-        for (Player player : subscribed) {
+        Protocol.broadcastPacket(this.subscribed, newObjectivePacket(UpdateType.REMOVE));
+        for (Player player : this.subscribed) {
             subscribe(player);
         }
     }
 
     @Override
     public void applyScores(Map<String, Integer> scores) {
-        Preconditions.checkNotNull(scores, "scores");
+        Objects.requireNonNull(scores, "scores");
 
         Set<String> toRemove = new HashSet<>(getScores().keySet());
         for (Map.Entry<String, Integer> score : scores.entrySet()) {
-            toRemove.remove(trimScore(Color.colorize(score.getKey())));
+            toRemove.remove(trimScore(Text.colorize(score.getKey())));
         }
         for (String name : toRemove) {
             removeScore(name);
@@ -239,7 +236,7 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
 
     @Override
     public void applyLines(Collection<String> lines) {
-        Preconditions.checkNotNull(lines, "lines");
+        Objects.requireNonNull(lines, "lines");
         Map<String, Integer> scores = new HashMap<>();
         int i = lines.size();
         for (String line : lines) {
@@ -250,13 +247,13 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
 
     @Override
     public void subscribe(Player player) {
-        Preconditions.checkNotNull(player, "player");
-        scoreboard.sendPacket(newObjectivePacket(UpdateType.CREATE), player);
-        scoreboard.sendPacket(newDisplaySlotPacket(getDisplaySlot()), player);
+        Objects.requireNonNull(player, "player");
+        Protocol.sendPacket(player, newObjectivePacket(UpdateType.CREATE));
+        Protocol.sendPacket(player, newDisplaySlotPacket(getDisplaySlot()));
         for (Map.Entry<String, Integer> score : getScores().entrySet()) {
-            scoreboard.sendPacket(newScorePacket(score.getKey(), score.getValue(), ScoreboardAction.CHANGE), player);
+            Protocol.sendPacket(player, newScorePacket(score.getKey(), score.getValue(), ScoreboardAction.CHANGE));
         }
-        subscribed.add(player);
+        this.subscribed.add(player);
     }
 
     @Override
@@ -266,18 +263,18 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
 
     @Override
     public void unsubscribe(Player player, boolean fast) {
-        Preconditions.checkNotNull(player, "player");
-        if (!subscribed.remove(player) || fast) {
+        Objects.requireNonNull(player, "player");
+        if (!this.subscribed.remove(player) || fast) {
             return;
         }
 
-        scoreboard.sendPacket(newObjectivePacket(UpdateType.REMOVE), player);
+        Protocol.sendPacket(player, newObjectivePacket(UpdateType.REMOVE));
     }
 
     @Override
     public void unsubscribeAll() {
-        scoreboard.broadcastPacket(subscribed, newObjectivePacket(UpdateType.REMOVE));
-        subscribed.clear();
+        Protocol.broadcastPacket(this.subscribed, newObjectivePacket(UpdateType.REMOVE));
+        this.subscribed.clear();
     }
 
     private PacketContainer newObjectivePacket(UpdateType mode) {
@@ -358,7 +355,7 @@ public class PacketScoreboardObjective implements ScoreboardObjective {
         }
 
         public int getCode() {
-            return code;
+            return this.code;
         }
     }
 

@@ -34,6 +34,8 @@ import me.lucko.helper.gson.JsonBuilder;
 
 import org.bukkit.Location;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -60,7 +62,7 @@ public final class Direction implements GsonSerializable {
     }
 
     public static Direction from(Location location) {
-        Preconditions.checkNotNull(location, "location");
+        Objects.requireNonNull(location, "location");
         return of(location.getYaw(), location.getPitch());
     }
 
@@ -73,19 +75,19 @@ public final class Direction implements GsonSerializable {
     }
 
     public float getYaw() {
-        return yaw;
+        return this.yaw;
     }
 
     public float getPitch() {
-        return pitch;
+        return this.pitch;
     }
 
     @Nonnull
     @Override
     public JsonObject serialize() {
         return JsonBuilder.object()
-                .add("yaw", yaw)
-                .add("pitch", pitch)
+                .add("yaw", this.yaw)
+                .add("pitch", this.pitch)
                 .build();
     }
 

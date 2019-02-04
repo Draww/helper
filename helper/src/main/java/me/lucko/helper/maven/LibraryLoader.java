@@ -25,8 +25,6 @@
 
 package me.lucko.helper.maven;
 
-import com.google.common.base.Preconditions;
-
 import me.lucko.helper.internal.LoaderUtils;
 import me.lucko.helper.utils.Log;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
@@ -38,6 +36,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.util.Objects;
 
 /**
  * Resolves {@link MavenLibrary} annotations for a class, and loads the dependency
@@ -142,36 +141,36 @@ public final class LibraryLoader {
         private final String repoUrl;
 
         public Dependency(String groupId, String artifactId, String version, String repoUrl) {
-            this.groupId = Preconditions.checkNotNull(groupId, "groupId");
-            this.artifactId = Preconditions.checkNotNull(artifactId, "artifactId");
-            this.version = Preconditions.checkNotNull(version, "version");
-            this.repoUrl = Preconditions.checkNotNull(repoUrl, "repoUrl");
+            this.groupId = Objects.requireNonNull(groupId, "groupId");
+            this.artifactId = Objects.requireNonNull(artifactId, "artifactId");
+            this.version = Objects.requireNonNull(version, "version");
+            this.repoUrl = Objects.requireNonNull(repoUrl, "repoUrl");
         }
 
         public String getGroupId() {
-            return groupId;
+            return this.groupId;
         }
 
         public String getArtifactId() {
-            return artifactId;
+            return this.artifactId;
         }
 
         public String getVersion() {
-            return version;
+            return this.version;
         }
 
         public String getRepoUrl() {
-            return repoUrl;
+            return this.repoUrl;
         }
 
         public URL getUrl() throws MalformedURLException {
-            String repo = repoUrl;
+            String repo = this.repoUrl;
             if (!repo.endsWith("/")) {
                 repo += "/";
             }
             repo += "%s/%s/%s/%s-%s.jar";
 
-            String url = String.format(repo, groupId.replace(".", "/"), artifactId, version, artifactId, version);
+            String url = String.format(repo, this.groupId.replace(".", "/"), this.artifactId, this.version, this.artifactId, this.version);
             return new URL(url);
         }
 

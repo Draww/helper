@@ -25,8 +25,6 @@
 
 package me.lucko.helper.profiles.plugin;
 
-import com.google.common.base.Preconditions;
-
 import me.lucko.helper.profiles.Profile;
 
 import java.util.Objects;
@@ -47,7 +45,7 @@ public final class ImmutableProfile implements Profile {
     private final long timestamp;
 
     public ImmutableProfile(@Nonnull UUID uniqueId, @Nullable String name, long timestamp) {
-        this.uniqueId = Preconditions.checkNotNull(uniqueId, "uniqueId");
+        this.uniqueId = Objects.requireNonNull(uniqueId, "uniqueId");
         this.name = name;
         this.timestamp = timestamp;
     }
@@ -59,18 +57,18 @@ public final class ImmutableProfile implements Profile {
     @Nonnull
     @Override
     public UUID getUniqueId() {
-        return uniqueId;
+        return this.uniqueId;
     }
 
     @Nonnull
     @Override
     public Optional<String> getName() {
-        return Optional.ofNullable(name);
+        return Optional.ofNullable(this.name);
     }
 
     @Override
     public long getTimestamp() {
-        return timestamp;
+        return this.timestamp;
     }
 
     @Override

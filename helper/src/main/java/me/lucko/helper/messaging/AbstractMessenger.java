@@ -33,13 +33,18 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.reflect.TypeToken;
 
-import me.lucko.helper.Scheduler;
-import me.lucko.helper.gson.GsonProvider;
+import me.lucko.helper.Schedulers;
+import me.lucko.helper.messaging.codec.Codec;
+import me.lucko.helper.messaging.codec.GZipCodec;
+import me.lucko.helper.messaging.codec.GsonCodec;
+import me.lucko.helper.messaging.codec.Message;
+import me.lucko.helper.promise.Promise;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
+import java.util.Base64;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -51,7 +56,7 @@ import javax.annotation.Nullable;
  * An abstract implementation of {@link Messenger}.
  *
  * <p>Outgoing messages are passed to a {@link BiConsumer} to be passed on.</p>
- * <p>Incoming messages can be distributed using {@link #registerIncomingMessage(String, String)}.</p>
+ * <p>Incoming messages can be distributed using {@link #registerIncomingMessage(String, byte[])}.</p>
  */
 @NonnullByDefault
 public class AbstractMessenger implements Messenger {
@@ -60,7 +65,7 @@ public class AbstractMessenger implements Messenger {
     private final LoadingCache<Map.Entry<String, TypeToken<?>>, AbstractChannel<?>> channels = CacheBuilder.newBuilder().build(new ChannelLoader());
 
     // consumer for outgoing messages. accepts in the format [channel name, message]
-    private final BiConsumer<String, String> outgoingMessages;
+    private final BiConsumer<String, byte[]> outgoingMessages;
     // consumer for channel names which should be subscribed to.
     private final Consumer<String> notifySub;
     // consumer for channel names which should be unsubscribed from.
@@ -73,10 +78,10 @@ public class AbstractMessenger implements Messenger {
      * @param notifySub the consumer to pass the names of channels which should be subscribed to
      * @param notifyUnsub the consumer to pass the names of channels which should be unsubscribed from
      */
-    public AbstractMessenger(BiConsumer<String, String> outgoingMessages, Consumer<String> notifySub, Consumer<String> notifyUnsub) {
-        this.outgoingMessages = Preconditions.checkNotNull(outgoingMessages, "outgoingMessages");
-        this.notifySub = Preconditions.checkNotNull(notifySub, "notifySub");
-        this.notifyUnsub = Preconditions.checkNotNull(notifyUnsub, "notifyUnsub");
+    public AbstractMessenger(BiConsumer<String, byte[]> outgoingMessages, Consumer<String> notifySub, Consumer<String> notifyUnsub) {
+        this.outgoingMessages = Objects.requireNonNull(outgoingMessages, "outgoingMessages");
+        this.notifySub = Objects.requireNonNull(notifySub, "notifySub");
+        this.notifyUnsub = Objects.requireNonNull(notifyUnsub, "notifyUnsub");
     }
 
     /**
@@ -85,11 +90,11 @@ public class AbstractMessenger implements Messenger {
      * @param channel the channel the message was received on
      * @param message the message
      */
-    public void registerIncomingMessage(String channel, String message) {
-        Preconditions.checkNotNull(channel, "channel");
-        Preconditions.checkNotNull(message, "message");
+    public void registerIncomingMessage(String channel, byte[] message) {
+        Objects.requireNonNull(channel, "channel");
+        Objects.requireNonNull(message, "message");
 
-        for (Map.Entry<Map.Entry<String, TypeToken<?>>, AbstractChannel<?>> c : channels.asMap().entrySet()) {
+        for (Map.Entry<Map.Entry<String, TypeToken<?>>, AbstractChannel<?>> c : this.channels.asMap().entrySet()) {
             if (c.getKey().getKey().equals(channel)) {
                 c.getValue().onIncomingMessage(message);
             }
@@ -100,17 +105,37 @@ public class AbstractMessenger implements Messenger {
     @SuppressWarnings("unchecked")
     @Override
     public <T> Channel<T> getChannel(@Nonnull String name, @Nonnull TypeToken<T> type) {
-        Preconditions.checkNotNull(name, "name");
+        Objects.requireNonNull(name, "name");
         Preconditions.checkArgument(!name.trim().isEmpty(), "name cannot be empty");
-        Preconditions.checkNotNull(type, "type");
+        Objects.requireNonNull(type, "type");
 
-        return (Channel<T>) channels.getUnchecked(Maps.immutableEntry(name, type));
+        return (Channel<T>) this.channels.getUnchecked(Maps.immutableEntry(name, type));
+    }
+
+    private static <T> Codec<T> getCodec(TypeToken<T> type) {
+        Class<? super T> rawType = type.getRawType();
+        do {
+            Message message = rawType.getAnnotation(Message.class);
+            if (message != null) {
+                Class<? extends Codec<?>> codec = message.codec();
+                try {
+                    //noinspection unchecked
+                    return (Codec<T>) codec.newInstance();
+                } catch (InstantiationException | IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        } while ((rawType = rawType.getSuperclass()) != null);
+
+        return new GsonCodec<>(type);
     }
 
     private static class AbstractChannel<T> implements Channel<T> {
         private final AbstractMessenger messenger;
         private final String name;
         private final TypeToken<T> type;
+        private final Codec<T> codec;
+
         private final Set<AbstractChannelAgent<T>> agents = ConcurrentHashMap.newKeySet();
         private boolean subscribed = false;
 
@@ -118,39 +143,40 @@ public class AbstractMessenger implements Messenger {
             this.messenger = messenger;
             this.name = name;
             this.type = type;
+            this.codec = new GZipCodec<>(AbstractMessenger.getCodec(type));
         }
 
-        private void onIncomingMessage(String message) {
+        private void onIncomingMessage(byte[] message) {
             try {
-                T decoded = GsonProvider.standard().fromJson(message, this.type.getType());
-                Preconditions.checkNotNull(decoded, "decoded");
+                T decoded = this.codec.decode(message);
+                Objects.requireNonNull(decoded, "decoded");
 
-                for (AbstractChannelAgent<T> agent : agents) {
+                for (AbstractChannelAgent<T> agent : this.agents) {
                     try {
                         agent.onIncomingMessage(decoded);
                     } catch (Exception e) {
-                        new RuntimeException("Unable to pass decoded message to agent: " + message, e).printStackTrace();
+                        new RuntimeException("Unable to pass decoded message to agent: " + decoded, e).printStackTrace();
                     }
                 }
 
             } catch (Exception e) {
-                new RuntimeException("Unable to decode message: " + message, e).printStackTrace();
+                new RuntimeException("Unable to decode message: " + Base64.getEncoder().encodeToString(message), e).printStackTrace();
             }
         }
 
         private void checkSubscription() {
-            boolean shouldSubscribe = agents.stream().anyMatch(AbstractChannelAgent::hasListeners);
-            if (shouldSubscribe == subscribed) {
+            boolean shouldSubscribe = this.agents.stream().anyMatch(AbstractChannelAgent::hasListeners);
+            if (shouldSubscribe == this.subscribed) {
                 return;
             }
-            subscribed = shouldSubscribe;
+            this.subscribed = shouldSubscribe;
 
-            Scheduler.runAsync(() -> {
+            Schedulers.async().run(() -> {
                 try {
                     if (shouldSubscribe) {
-                        messenger.notifySub.accept(this.name);
+                        this.messenger.notifySub.accept(this.name);
                     } else {
-                        messenger.notifyUnsub.accept(this.name);
+                        this.messenger.notifyUnsub.accept(this.name);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -168,25 +194,27 @@ public class AbstractMessenger implements Messenger {
             return this.type;
         }
 
+        @Nonnull
+        @Override
+        public Codec<T> getCodec() {
+            return this.codec;
+        }
+
         @Override
         public ChannelAgent<T> newAgent() {
             AbstractChannelAgent<T> agent = new AbstractChannelAgent<>(this);
-            agents.add(agent);
+            this.agents.add(agent);
             return agent;
         }
 
         @Override
-        public CompletableFuture<Boolean> sendMessage(T message) {
-            return CompletableFuture.supplyAsync(() -> GsonProvider.standard().toJson(message, this.type.getType()))
-                    .thenApply(m -> {
-                        try {
-                            messenger.outgoingMessages.accept(this.name, m);
-                            return true;
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            return false;
-                        }
-                    });
+        public Promise<Void> sendMessage(T message) {
+            Objects.requireNonNull(message, "message");
+            return Schedulers.async().call(() -> {
+                byte[] buf = this.codec.encode(message);
+                this.messenger.outgoingMessages.accept(this.name, buf);
+                return null;
+            });
         }
     }
 
@@ -200,8 +228,8 @@ public class AbstractMessenger implements Messenger {
         }
 
         private void onIncomingMessage(T message) {
-            for (ChannelListener<T> listener : listeners) {
-                Scheduler.runAsync(() -> {
+            for (ChannelListener<T> listener : this.listeners) {
+                Schedulers.async().run(() -> {
                     try {
                         listener.onMessage(this, message);
                     } catch (Exception e) {
@@ -213,52 +241,51 @@ public class AbstractMessenger implements Messenger {
 
         @Override
         public Channel<T> getChannel() {
-            Preconditions.checkState(channel != null, "agent not active");
+            Preconditions.checkState(this.channel != null, "agent not active");
             return this.channel;
         }
 
         @Override
         public Set<ChannelListener<T>> getListeners() {
-            Preconditions.checkState(channel != null, "agent not active");
-            return ImmutableSet.copyOf(listeners);
+            Preconditions.checkState(this.channel != null, "agent not active");
+            return ImmutableSet.copyOf(this.listeners);
         }
 
         @Override
         public boolean hasListeners() {
-            return !listeners.isEmpty();
+            return !this.listeners.isEmpty();
         }
 
         @Override
         public boolean addListener(ChannelListener<T> listener) {
-            Preconditions.checkState(channel != null, "agent not active");
+            Preconditions.checkState(this.channel != null, "agent not active");
             try {
-                return listeners.add(listener);
+                return this.listeners.add(listener);
             } finally {
-                channel.checkSubscription();
+                this.channel.checkSubscription();
             }
         }
 
         @Override
         public boolean removeListener(ChannelListener<T> listener) {
-            Preconditions.checkState(channel != null, "agent not active");
+            Preconditions.checkState(this.channel != null, "agent not active");
             try {
-                return listeners.remove(listener);
+                return this.listeners.remove(listener);
             } finally {
-                channel.checkSubscription();
+                this.channel.checkSubscription();
             }
         }
 
         @Override
-        public boolean terminate() {
-            if (channel == null) {
-                return false;
+        public void close() {
+            if (this.channel == null) {
+                return;
             }
 
-            listeners.clear();
-            channel.agents.remove(this);
-            channel.checkSubscription();
-            channel = null;
-            return true;
+            this.listeners.clear();
+            this.channel.agents.remove(this);
+            this.channel.checkSubscription();
+            this.channel = null;
         }
     }
 

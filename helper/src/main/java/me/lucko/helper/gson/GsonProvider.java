@@ -25,13 +25,19 @@
 
 package me.lucko.helper.gson;
 
-import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import me.lucko.helper.datatree.DataTree;
+import me.lucko.helper.gson.typeadapters.BukkitSerializableAdapterFactory;
+import me.lucko.helper.gson.typeadapters.GsonSerializableAdapterFactory;
+import me.lucko.helper.gson.typeadapters.JsonElementTreeSerializer;
 
 import java.io.Reader;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -40,14 +46,16 @@ import javax.annotation.Nonnull;
  */
 public final class GsonProvider {
 
-    private static final Gson STANDARD = new GsonBuilder()
+    private static final Gson STANDARD_GSON = new GsonBuilder()
+            .registerTypeHierarchyAdapter(DataTree.class, JsonElementTreeSerializer.INSTANCE)
             .registerTypeAdapterFactory(GsonSerializableAdapterFactory.INSTANCE)
             .registerTypeAdapterFactory(BukkitSerializableAdapterFactory.INSTANCE)
             .serializeNulls()
             .disableHtmlEscaping()
             .create();
 
-    private static final Gson PRETTY_PRINT = new GsonBuilder()
+    private static final Gson PRETTY_PRINT_GSON = new GsonBuilder()
+            .registerTypeHierarchyAdapter(DataTree.class, JsonElementTreeSerializer.INSTANCE)
             .registerTypeAdapterFactory(GsonSerializableAdapterFactory.INSTANCE)
             .registerTypeAdapterFactory(BukkitSerializableAdapterFactory.INSTANCE)
             .serializeNulls()
@@ -55,24 +63,31 @@ public final class GsonProvider {
             .setPrettyPrinting()
             .create();
 
+    private static final JsonParser PARSER = new JsonParser();
+
     @Nonnull
     public static Gson standard() {
-        return STANDARD;
+        return STANDARD_GSON;
     }
 
     @Nonnull
     public static Gson prettyPrinting() {
-        return PRETTY_PRINT;
+        return PRETTY_PRINT_GSON;
+    }
+
+    @Nonnull
+    public static JsonParser parser() {
+        return PARSER;
     }
 
     @Nonnull
     public static JsonObject readObject(@Nonnull Reader reader) {
-        return Preconditions.checkNotNull(standard().fromJson(reader, JsonObject.class));
+        return PARSER.parse(reader).getAsJsonObject();
     }
 
     @Nonnull
     public static JsonObject readObject(@Nonnull String s) {
-        return Preconditions.checkNotNull(standard().fromJson(s, JsonObject.class));
+        return PARSER.parse(s).getAsJsonObject();
     }
 
     public static void writeObject(@Nonnull Appendable writer, @Nonnull JsonObject object) {
@@ -93,12 +108,12 @@ public final class GsonProvider {
 
     @Nonnull
     public static String toString(@Nonnull JsonElement element) {
-        return Preconditions.checkNotNull(standard().toJson(element));
+        return Objects.requireNonNull(standard().toJson(element));
     }
 
     @Nonnull
     public static String toStringPretty(@Nonnull JsonElement element) {
-        return Preconditions.checkNotNull(prettyPrinting().toJson(element));
+        return Objects.requireNonNull(prettyPrinting().toJson(element));
     }
 
     private GsonProvider() {

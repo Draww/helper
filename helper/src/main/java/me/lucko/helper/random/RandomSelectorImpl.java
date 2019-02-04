@@ -28,13 +28,14 @@ package me.lucko.helper.random;
 import com.google.common.base.Preconditions;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
 
 final class RandomSelectorImpl<E> implements RandomSelector<E> {
 
     static <E> RandomSelector<E> uniform(Collection<E> elements) {
-        Preconditions.checkNotNull(elements, "elements must not be null");
+        Objects.requireNonNull(elements, "elements must not be null");
         Preconditions.checkArgument(!elements.isEmpty(), "elements must not be empty");
 
         int size = elements.size();
@@ -45,8 +46,8 @@ final class RandomSelectorImpl<E> implements RandomSelector<E> {
     }
 
     static <E> RandomSelector<E> weighted(Collection<E> elements, Weigher<? super E> weigher) {
-        Preconditions.checkNotNull(elements, "elements must not be null");
-        Preconditions.checkNotNull(weigher, "weigher must not be null");
+        Objects.requireNonNull(elements, "elements must not be null");
+        Objects.requireNonNull(weigher, "weigher must not be null");
         Preconditions.checkArgument(!elements.isEmpty(), "elements must not be empty");
 
         int size = elements.size();
@@ -82,12 +83,12 @@ final class RandomSelectorImpl<E> implements RandomSelector<E> {
 
     @Override
     public E pick(Random random) {
-        return elements[selection.pickIndex(random)];
+        return this.elements[this.selection.pickIndex(random)];
     }
 
     @Override
     public Stream<E> stream(Random random) {
-        Preconditions.checkNotNull(random, "random must not be null");
+        Objects.requireNonNull(random, "random must not be null");
         return Stream.generate(() -> pick(random));
     }
 
@@ -106,7 +107,7 @@ final class RandomSelectorImpl<E> implements RandomSelector<E> {
 
         @Override
         public int pickIndex(Random random) {
-            return random.nextInt(bound);
+            return random.nextInt(this.bound);
         }
     }
 
@@ -164,8 +165,8 @@ final class RandomSelectorImpl<E> implements RandomSelector<E> {
 
         @Override
         public int pickIndex(final Random random) {
-            final int column = random.nextInt(probabilities.length);
-            return random.nextDouble() < probabilities[column] ? column : alias[column];
+            final int column = random.nextInt(this.probabilities.length);
+            return random.nextDouble() < this.probabilities[column] ? column : this.alias[column];
         }
     }
 }

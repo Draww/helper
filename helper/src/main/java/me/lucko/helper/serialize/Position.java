@@ -40,6 +40,8 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -65,34 +67,34 @@ public final class Position implements GsonSerializable {
     }
 
     public static Position of(double x, double y, double z, String world) {
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(world, "world");
         return new Position(x, y, z, world);
     }
 
     public static Position of(double x, double y, double z, World world) {
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(world, "world");
         return of(x, y, z, world.getName());
     }
 
     public static Position of(Vector3d vector, String world) {
-        Preconditions.checkNotNull(vector, "vector");
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(vector, "vector");
+        Objects.requireNonNull(world, "world");
         return of(vector.getX(), vector.getY(), vector.getZ(), world);
     }
 
     public static Position of(Vector3d vector, World world) {
-        Preconditions.checkNotNull(vector, "vector");
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(vector, "vector");
+        Objects.requireNonNull(world, "world");
         return of(vector.getX(), vector.getY(), vector.getZ(), world);
     }
 
     public static Position of(Location location) {
-        Preconditions.checkNotNull(location, "location");
+        Objects.requireNonNull(location, "location");
         return of(location.getX(), location.getY(), location.getZ(), location.getWorld().getName());
     }
 
     public static Position of(Block block) {
-        Preconditions.checkNotNull(block, "block");
+        Objects.requireNonNull(block, "block");
         return of(block.getLocation());
     }
 
@@ -128,29 +130,29 @@ public final class Position implements GsonSerializable {
     }
 
     public Vector3d toVector() {
-        return new Vector3d(x, y, z);
+        return new Vector3d(this.x, this.y, this.z);
     }
 
     public synchronized Location toLocation() {
-        if (bukkitLocation == null) {
-            bukkitLocation = new Location(Helper.worldNullable(world), x, y, z);
+        if (this.bukkitLocation == null) {
+            this.bukkitLocation = new Location(Helper.worldNullable(this.world), this.x, this.y, this.z);
         }
 
-        return bukkitLocation.clone();
+        return this.bukkitLocation.clone();
     }
 
     public BlockPosition floor() {
-        return BlockPosition.of(bukkitFloor(x), bukkitFloor(y), bukkitFloor(z), world);
+        return BlockPosition.of(bukkitFloor(this.x), bukkitFloor(this.y), bukkitFloor(this.z), this.world);
     }
 
     public Position getRelative(BlockFace face) {
-        Preconditions.checkNotNull(face, "face");
-        return Position.of(x + face.getModX(), y + face.getModY(), z + face.getModZ(), world);
+        Objects.requireNonNull(face, "face");
+        return Position.of(this.x + face.getModX(), this.y + face.getModY(), this.z + face.getModZ(), this.world);
     }
 
     public Position getRelative(BlockFace face, double distance) {
-        Preconditions.checkNotNull(face, "face");
-        return Position.of(x + (face.getModX() * distance), y + (face.getModY() * distance), z + (face.getModZ() * distance), world);
+        Objects.requireNonNull(face, "face");
+        return Position.of(this.x + (face.getModX() * distance), this.y + (face.getModY() * distance), this.z + (face.getModZ() * distance), this.world);
     }
 
     public Position add(Vector3i vector3i) {
@@ -162,7 +164,7 @@ public final class Position implements GsonSerializable {
     }
 
     public Position add(double x, double y, double z) {
-        return Position.of(this.x + x, this.y + y, this.z + z, world);
+        return Position.of(this.x + x, this.y + y, this.z + z, this.world);
     }
 
     public Position subtract(Vector3i vector3i) {
@@ -178,7 +180,7 @@ public final class Position implements GsonSerializable {
     }
 
     public Region regionWith(Position other) {
-        Preconditions.checkNotNull(other, "other");
+        Objects.requireNonNull(other, "other");
         return Region.of(this, other);
     }
 
@@ -190,10 +192,10 @@ public final class Position implements GsonSerializable {
     @Override
     public JsonObject serialize() {
         return JsonBuilder.object()
-                .add("x", x)
-                .add("y", y)
-                .add("z", z)
-                .add("world", world)
+                .add("x", this.x)
+                .add("y", this.y)
+                .add("z", this.z)
+                .add("world", this.world)
                 .build();
     }
 

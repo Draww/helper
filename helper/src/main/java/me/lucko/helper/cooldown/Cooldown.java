@@ -25,6 +25,12 @@
 
 package me.lucko.helper.cooldown;
 
+import com.google.common.base.Preconditions;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
+import me.lucko.helper.gson.GsonSerializable;
+import me.lucko.helper.scheduler.Ticks;
 import me.lucko.helper.utils.TimeUtil;
 
 import java.util.OptionalLong;
@@ -35,7 +41,21 @@ import javax.annotation.Nonnull;
 /**
  * A simple cooldown abstraction
  */
-public interface Cooldown {
+public interface Cooldown extends GsonSerializable {
+    static Cooldown deserialize(JsonElement element) {
+        Preconditions.checkArgument(element.isJsonObject());
+        JsonObject object = element.getAsJsonObject();
+
+        Preconditions.checkArgument(object.has("lastTested"));
+        Preconditions.checkArgument(object.has("timeout"));
+
+        long lastTested = object.get("lastTested").getAsLong();
+        long timeout = object.get("timeout").getAsLong();
+
+        Cooldown c = of(timeout, TimeUnit.MILLISECONDS);
+        c.setLastTested(lastTested);
+        return c;
+    }
 
     /**
      * Creates a cooldown lasting a number of game ticks
@@ -45,8 +65,7 @@ public interface Cooldown {
      */
     @Nonnull
     static Cooldown ofTicks(long ticks) {
-        //noinspection deprecation
-        return me.lucko.helper.utils.Cooldown.ofTicks(ticks);
+        return new CooldownImpl(Ticks.to(ticks, TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -58,8 +77,7 @@ public interface Cooldown {
      */
     @Nonnull
     static Cooldown of(long amount, @Nonnull TimeUnit unit) {
-        //noinspection deprecation
-        return me.lucko.helper.utils.Cooldown.of(amount, unit);
+        return new CooldownImpl(amount, unit);
     }
 
     /**
@@ -128,21 +146,6 @@ public interface Cooldown {
     }
 
     /**
-     * Gets the timeout in milliseconds for this cooldown
-     *
-     * @return the timeout in milliseconds
-     */
-    long getTimeout();
-
-    /**
-     * Copies the properties of this cooldown to a new instance
-     *
-     * @return a cloned cooldown instance
-     */
-    @Nonnull
-    Cooldown copy();
-
-    /**
      * Return the time in milliseconds when this cooldown was last {@link #test()}ed.
      *
      * @return the last call time
@@ -159,5 +162,20 @@ public interface Cooldown {
      * @param time the time
      */
     void setLastTested(long time);
+
+    /**
+     * Gets the timeout in milliseconds for this cooldown
+     *
+     * @return the timeout in milliseconds
+     */
+    long getTimeout();
+
+    /**
+     * Copies the properties of this cooldown to a new instance
+     *
+     * @return a cloned cooldown instance
+     */
+    @Nonnull
+    Cooldown copy();
 
 }

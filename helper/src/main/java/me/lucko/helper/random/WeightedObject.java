@@ -27,6 +27,8 @@ package me.lucko.helper.random;
 
 import com.google.common.base.Preconditions;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -46,18 +48,18 @@ public final class WeightedObject<T> implements Weighted {
 
     private WeightedObject(T object, double weight) {
         Preconditions.checkArgument(weight >= 0, "weight cannot be negative");
-        this.object = Preconditions.checkNotNull(object, "object");
+        this.object = Objects.requireNonNull(object, "object");
         this.weight = weight;
     }
 
     @Nonnull
     public T get() {
-        return object;
+        return this.object;
     }
 
     @Override
     public double getWeight() {
-        return weight;
+        return this.weight;
     }
 
     @Override

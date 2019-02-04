@@ -25,11 +25,8 @@
 
 package me.lucko.helper.cache;
 
-import com.google.common.base.Preconditions;
-
-import me.lucko.helper.utils.NullableOptional;
-
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -43,64 +40,39 @@ import java.util.function.Supplier;
 public final class Cache<T> implements Supplier<T> {
 
     public static <T> Cache<T> suppliedBy(Supplier<T> supplier) {
-        return new Cache<>(Preconditions.checkNotNull(supplier, "supplier"));
+        return new Cache<>(Objects.requireNonNull(supplier, "supplier"));
     }
 
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Supplier<T> supplier;
-    private T value;
-    private boolean hasValue = false;
+    private volatile T value = null;
 
     private Cache(Supplier<T> supplier) {
         this.supplier = supplier;
     }
 
     @Override
-    public T get() {
-        // try to just read from the cached value
-        lock.readLock().lock();
-        try {
-            if (hasValue) {
-                return value;
+    public final T get() {
+        T val = this.value;
+
+        // double checked locking
+        if (val == null) {
+            synchronized (this) {
+                val = this.value;
+                if (val == null) {
+                    val = this.supplier.get();
+                    this.value = val;
+                }
             }
-        } finally {
-            // we have to release the read lock, as it is not possible
-            // to acquire the write lock whilst holding a read lock
-            lock.readLock().unlock();
         }
 
-        lock.writeLock().lock();
-        try {
-            // Since the lock was unlocked momentarily, we need
-            // to check again for a cached value
-            if (hasValue) {
-                return value;
-            }
-
-            // call the supplier and set the cached value
-            value = supplier.get();
-            return value;
-        } finally {
-            lock.writeLock().unlock();
-        }
+        return val;
     }
 
-    public NullableOptional<T> getIfPresent() {
-        lock.readLock().lock();
-        try {
-            return hasValue ? NullableOptional.of(value) : NullableOptional.empty();
-        } finally {
-            lock.readLock().unlock();
-        }
+    public final Optional<T> getIfPresent() {
+        return Optional.ofNullable(this.value);
     }
 
-    public void invalidate() {
-        lock.writeLock().lock();
-        try {
-            hasValue = false;
-            value = null;
-        } finally {
-            lock.writeLock().unlock();
-        }
+    public final void invalidate() {
+        this.value = null;
     }
 }

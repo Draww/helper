@@ -34,6 +34,8 @@ import me.lucko.helper.gson.JsonBuilder;
 
 import org.bukkit.Location;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -54,8 +56,8 @@ public final class Region implements GsonSerializable {
     }
 
     public static Region of(Position a, Position b) {
-        Preconditions.checkNotNull(a, "a");
-        Preconditions.checkNotNull(b, "b");
+        Objects.requireNonNull(a, "a");
+        Objects.requireNonNull(b, "b");
 
         if (!a.getWorld().equals(b.getWorld())) {
             throw new IllegalArgumentException("positions are in different worlds");
@@ -72,28 +74,28 @@ public final class Region implements GsonSerializable {
     private final double depth;
 
     private Region(Position a, Position b) {
-        min = Position.of(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()), a.getWorld());
-        max = Position.of(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()), a.getWorld());
+        this.min = Position.of(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()), a.getWorld());
+        this.max = Position.of(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()), a.getWorld());
 
-        width = max.getX() - min.getX();
-        height = max.getY() - min.getX();
-        depth = max.getZ() - min.getZ();
+        this.width = this.max.getX() - this.min.getX();
+        this.height = this.max.getY() - this.min.getY();
+        this.depth = this.max.getZ() - this.min.getZ();
     }
 
     public boolean inRegion(Position pos) {
-        Preconditions.checkNotNull(pos, "pos");
-        return pos.getWorld().equals(min.getWorld()) && inRegion(pos.getX(), pos.getY(), pos.getZ());
+        Objects.requireNonNull(pos, "pos");
+        return pos.getWorld().equals(this.min.getWorld()) && inRegion(pos.getX(), pos.getY(), pos.getZ());
     }
 
     public boolean inRegion(Location loc) {
-        Preconditions.checkNotNull(loc, "loc");
-        return loc.getWorld().getName().equals(min.getWorld()) && inRegion(loc.getX(), loc.getY(), loc.getZ());
+        Objects.requireNonNull(loc, "loc");
+        return loc.getWorld().getName().equals(this.min.getWorld()) && inRegion(loc.getX(), loc.getY(), loc.getZ());
     }
 
     public boolean inRegion(double x, double y, double z) {
-        return x >= min.getX() && x <= max.getX()
-                && y >= min.getY() && y <= max.getY()
-                && z >= min.getZ() && z <= max.getZ();
+        return x >= this.min.getX() && x <= this.max.getX()
+                && y >= this.min.getY() && y <= this.max.getY()
+                && z >= this.min.getZ() && z <= this.max.getZ();
     }
 
     public Position getMin() {
@@ -120,8 +122,8 @@ public final class Region implements GsonSerializable {
     @Override
     public JsonObject serialize() {
         return JsonBuilder.object()
-                .add("min", min)
-                .add("max", max)
+                .add("min", this.min)
+                .add("max", this.max)
                 .build();
     }
 

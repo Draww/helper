@@ -25,8 +25,7 @@
 
 package me.lucko.helper.cache;
 
-import com.google.common.base.Preconditions;
-
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -40,11 +39,11 @@ import java.util.function.Supplier;
 public final class Lazy<T> implements Supplier<T> {
 
     public static <T> Lazy<T> suppliedBy(Supplier<T> supplier) {
-        return new Lazy<>(Preconditions.checkNotNull(supplier, "supplier"));
+        return new Lazy<>(Objects.requireNonNull(supplier, "supplier"));
     }
 
     public static <T> Lazy<T> of(T value) {
-        return new Lazy<>(Preconditions.checkNotNull(value, "value"));
+        return new Lazy<>(Objects.requireNonNull(value, "value"));
     }
 
     private volatile Supplier<T> supplier;
@@ -62,21 +61,21 @@ public final class Lazy<T> implements Supplier<T> {
 
     @Override
     public T get() {
-        if (!initialized) {
+        if (!this.initialized) {
             synchronized (this) {
-                if (!initialized) {
+                if (!this.initialized) {
                     // compute the value using the delegate
-                    T t = supplier.get();
+                    T t = this.supplier.get();
 
-                    value = t;
-                    initialized = true;
+                    this.value = t;
+                    this.initialized = true;
 
                     // release the delegate supplier to the gc
-                    supplier = null;
+                    this.supplier = null;
                     return t;
                 }
             }
         }
-        return value;
+        return this.value;
     }
 }

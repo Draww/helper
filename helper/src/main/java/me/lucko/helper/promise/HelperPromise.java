@@ -25,15 +25,28 @@
 
 package me.lucko.helper.promise;
 
-import me.lucko.helper.Scheduler;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+
 import me.lucko.helper.interfaces.Delegate;
 import me.lucko.helper.internal.LoaderUtils;
+import me.lucko.helper.scheduler.HelperExecutors;
+import me.lucko.helper.scheduler.Ticks;
+import me.lucko.helper.utils.Log;
 
+import org.bukkit.Bukkit;
+
+import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -45,21 +58,69 @@ import javax.annotation.Nullable;
  *
  * @param <V> the result type
  */
-class HelperPromise<V> implements Promise<V> {
+final class HelperPromise<V> implements Promise<V> {
+    private static final Consumer<Throwable> EXCEPTION_CONSUMER = throwable -> {
+        Log.severe("[SCHEDULER] Exception thrown whilst executing task");
+        throwable.printStackTrace();
+    };
 
     @Nonnull
-    public static <U> HelperPromise<U> empty() {
+    static <U> HelperPromise<U> empty() {
         return new HelperPromise<>();
     }
 
     @Nonnull
-    public static <U> HelperPromise<U> completed(@Nullable U value) {
+    static <U> HelperPromise<U> completed(@Nullable U value) {
         return new HelperPromise<>(value);
     }
 
     @Nonnull
-    public static <U> HelperPromise<U> exceptionally(@Nonnull Throwable t) {
+    static <U> HelperPromise<U> exceptionally(@Nonnull Throwable t) {
         return new HelperPromise<>(t);
+    }
+
+    @Nonnull
+    static <U> Promise<U> wrapFuture(@Nonnull Future<U> future) {
+        if (future instanceof CompletableFuture<?>) {
+            return new HelperPromise<>(((CompletableFuture<U>) future).thenApply(Function.identity()));
+
+        } else if (future instanceof CompletionStage<?>) {
+            //noinspection unchecked
+            CompletionStage<U> fut = (CompletionStage<U>) future;
+            return new HelperPromise<>(fut.toCompletableFuture().thenApply(Function.identity()));
+
+        } else if (future instanceof ListenableFuture<?>) {
+            ListenableFuture<U> fut = (ListenableFuture<U>) future;
+            HelperPromise<U> promise = empty();
+            promise.supplied.set(true);
+
+            Futures.addCallback(fut, new FutureCallback<U>() {
+                @Override
+                public void onSuccess(@Nullable U result) {
+                    promise.complete(result);
+                }
+
+                @Override
+                public void onFailure(@Nonnull Throwable t) {
+                    promise.completeExceptionally(t);
+                }
+            });
+
+            return promise;
+
+        } else {
+            if (future.isDone()) {
+                try {
+                    return completed(future.get());
+                } catch (ExecutionException e) {
+                    return exceptionally(e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                return Promise.supplyingExceptionallyAsync(future::get);
+            }
+        }
     }
 
     /**
@@ -76,60 +137,84 @@ class HelperPromise<V> implements Promise<V> {
      * The completable future backing this promise
      */
     @Nonnull
-    private final CompletableFuture<V> fut = new CompletableFuture<>();
+    private final CompletableFuture<V> fut;
 
-    private HelperPromise() {}
+    private HelperPromise() {
+        this.fut = new CompletableFuture<>();
+    }
 
     private HelperPromise(@Nullable V v) {
-        supplied.set(true);
-        fut.complete(v);
+        this.fut = CompletableFuture.completedFuture(v);
+        this.supplied.set(true);
     }
 
     private HelperPromise(@Nonnull Throwable t) {
-        supplied.set(true);
-        fut.completeExceptionally(t);
+        (this.fut = new CompletableFuture<>()).completeExceptionally(t);
+        this.supplied.set(true);
+    }
+
+    private HelperPromise(@Nonnull CompletableFuture<V> fut) {
+        this.fut = Objects.requireNonNull(fut, "future");
+        this.supplied.set(true);
+        this.cancelled.set(fut.isCancelled());
     }
 
     /* utility methods */
 
     private void executeSync(@Nonnull Runnable runnable) {
         if (ThreadContext.forCurrentThread() == ThreadContext.SYNC) {
-            Scheduler.wrapRunnable(runnable).run();
+            HelperExecutors.wrapRunnable(runnable).run();
         } else {
-            Scheduler.sync().execute(runnable);
+            HelperExecutors.sync().execute(runnable);
         }
     }
 
     private void executeAsync(@Nonnull Runnable runnable) {
-        Scheduler.async().execute(runnable);
+        HelperExecutors.asyncHelper().execute(runnable);
     }
 
-    private void executeDelayedSync(@Nonnull Runnable runnable, long delay) {
-        if (delay <= 0) {
+    private void executeDelayedSync(@Nonnull Runnable runnable, long delayTicks) {
+        if (delayTicks <= 0) {
             executeSync(runnable);
         } else {
-            Scheduler.bukkit().runTaskLater(LoaderUtils.getPlugin(), Scheduler.wrapRunnable(runnable), delay);
+            Bukkit.getScheduler().runTaskLater(LoaderUtils.getPlugin(), HelperExecutors.wrapRunnable(runnable), delayTicks);
         }
     }
 
-    private void executeDelayedAsync(@Nonnull Runnable runnable, long delay) {
+    private void executeDelayedAsync(@Nonnull Runnable runnable, long delayTicks) {
+        if (delayTicks <= 0) {
+            executeAsync(runnable);
+        } else {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(LoaderUtils.getPlugin(), HelperExecutors.wrapRunnable(runnable), delayTicks);
+        }
+    }
+
+    private void executeDelayedSync(@Nonnull Runnable runnable, long delay, TimeUnit unit) {
+        if (delay <= 0) {
+            executeSync(runnable);
+        } else {
+            Bukkit.getScheduler().runTaskLater(LoaderUtils.getPlugin(), HelperExecutors.wrapRunnable(runnable), Ticks.from(delay, unit));
+        }
+    }
+
+    private void executeDelayedAsync(@Nonnull Runnable runnable, long delay, TimeUnit unit) {
         if (delay <= 0) {
             executeAsync(runnable);
         } else {
-            Scheduler.bukkit().runTaskLaterAsynchronously(LoaderUtils.getPlugin(), Scheduler.wrapRunnable(runnable), delay);
+            HelperExecutors.asyncHelper().schedule(HelperExecutors.wrapRunnable(runnable), delay, unit);
         }
     }
 
     private boolean complete(V value) {
-        return !cancelled.get() && fut.complete(value);
+        return !this.cancelled.get() && this.fut.complete(value);
     }
 
     private boolean completeExceptionally(@Nonnull Throwable t) {
-        return !cancelled.get() && fut.completeExceptionally(t);
+        return !this.cancelled.get() && this.fut.completeExceptionally(t);
     }
 
     private void markAsSupplied() {
-        if (!supplied.compareAndSet(false, true)) {
+        if (!this.supplied.compareAndSet(false, true)) {
             throw new IllegalStateException("Promise is already being supplied.");
         }
     }
@@ -138,52 +223,52 @@ class HelperPromise<V> implements Promise<V> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        cancelled.set(true);
-        return fut.cancel(mayInterruptIfRunning);
+        this.cancelled.set(true);
+        return this.fut.cancel(mayInterruptIfRunning);
     }
 
     @Override
     public boolean isCancelled() {
-        return fut.isCancelled();
+        return this.fut.isCancelled();
     }
 
     @Override
     public boolean isDone() {
-        return fut.isDone();
+        return this.fut.isDone();
     }
 
     @Override
     public V get() throws InterruptedException, ExecutionException {
-        return fut.get();
+        return this.fut.get();
     }
 
     @Override
     public V get(long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-        return fut.get(timeout, unit);
+        return this.fut.get(timeout, unit);
     }
 
     @Override
     public V join() {
-        return fut.join();
+        return this.fut.join();
     }
 
     @Override
     public V getNow(V valueIfAbsent) {
-        return fut.getNow(valueIfAbsent);
+        return this.fut.getNow(valueIfAbsent);
     }
 
     @Override
     public CompletableFuture<V> toCompletableFuture() {
-        return fut.thenApply(Function.identity());
+        return this.fut.thenApply(Function.identity());
     }
 
     @Override
-    public boolean terminate() {
-        return cancel();
+    public void close() {
+        cancel();
     }
 
     @Override
-    public boolean hasTerminated() {
+    public boolean isClosed() {
         return isCancelled();
     }
 
@@ -223,17 +308,81 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public Promise<V> supplyDelayedSync(@Nonnull Supplier<V> supplier, long delay) {
+    public Promise<V> supplyDelayedSync(@Nonnull Supplier<V> supplier, long delayTicks) {
         markAsSupplied();
-        executeDelayedSync(new SupplyRunnable(supplier), delay);
+        executeDelayedSync(new SupplyRunnable(supplier), delayTicks);
         return this;
     }
 
     @Nonnull
     @Override
-    public Promise<V> supplyDelayedAsync(@Nonnull Supplier<V> supplier, long delay) {
+    public Promise<V> supplyDelayedSync(@Nonnull Supplier<V> supplier, long delay, @Nonnull TimeUnit unit) {
         markAsSupplied();
-        executeDelayedAsync(new SupplyRunnable(supplier), delay);
+        executeDelayedSync(new SupplyRunnable(supplier), delay, unit);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyDelayedAsync(@Nonnull Supplier<V> supplier, long delayTicks) {
+        markAsSupplied();
+        executeDelayedAsync(new SupplyRunnable(supplier), delayTicks);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyDelayedAsync(@Nonnull Supplier<V> supplier, long delay, @Nonnull TimeUnit unit) {
+        markAsSupplied();
+        executeDelayedAsync(new SupplyRunnable(supplier), delay, unit);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyExceptionallySync(@Nonnull Callable<V> callable) {
+        markAsSupplied();
+        executeSync(new ThrowingSupplyRunnable(callable));
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyExceptionallyAsync(@Nonnull Callable<V> callable) {
+        markAsSupplied();
+        executeAsync(new ThrowingSupplyRunnable(callable));
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyExceptionallyDelayedSync(@Nonnull Callable<V> callable, long delayTicks) {
+        markAsSupplied();
+        executeDelayedSync(new ThrowingSupplyRunnable(callable), delayTicks);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyExceptionallyDelayedSync(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+        markAsSupplied();
+        executeDelayedSync(new ThrowingSupplyRunnable(callable), delay, unit);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyExceptionallyDelayedAsync(@Nonnull Callable<V> callable, long delayTicks) {
+        markAsSupplied();
+        executeDelayedAsync(new ThrowingSupplyRunnable(callable), delayTicks);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> supplyExceptionallyDelayedAsync(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+        markAsSupplied();
+        executeDelayedAsync(new ThrowingSupplyRunnable(callable), delay, unit);
         return this;
     }
 
@@ -241,7 +390,7 @@ class HelperPromise<V> implements Promise<V> {
     @Override
     public <U> Promise<U> thenApplySync(@Nonnull Function<? super V, ? extends U> fn) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
@@ -255,7 +404,7 @@ class HelperPromise<V> implements Promise<V> {
     @Override
     public <U> Promise<U> thenApplyAsync(@Nonnull Function<? super V, ? extends U> fn) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
@@ -267,13 +416,13 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public <U> Promise<U> thenApplyDelayedSync(@Nonnull Function<? super V, ? extends U> fn, long delay) {
+    public <U> Promise<U> thenApplyDelayedSync(@Nonnull Function<? super V, ? extends U> fn, long delayTicks) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
-                executeDelayedSync(new ApplyRunnable<>(promise, fn, value), delay);
+                executeDelayedSync(new ApplyRunnable<>(promise, fn, value), delayTicks);
             }
         });
         return promise;
@@ -281,13 +430,41 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public <U> Promise<U> thenApplyDelayedAsync(@Nonnull Function<? super V, ? extends U> fn, long delay) {
+    public <U> Promise<U> thenApplyDelayedSync(@Nonnull Function<? super V, ? extends U> fn, long delay, @Nonnull TimeUnit unit) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
-                executeDelayedAsync(new ApplyRunnable<>(promise, fn, value), delay);
+                executeDelayedSync(new ApplyRunnable<>(promise, fn, value), delay, unit);
+            }
+        });
+        return promise;
+    }
+
+    @Nonnull
+    @Override
+    public <U> Promise<U> thenApplyDelayedAsync(@Nonnull Function<? super V, ? extends U> fn, long delayTicks) {
+        HelperPromise<U> promise = empty();
+        this.fut.whenComplete((value, t) -> {
+            if (t != null) {
+                promise.completeExceptionally(t);
+            } else {
+                executeDelayedAsync(new ApplyRunnable<>(promise, fn, value), delayTicks);
+            }
+        });
+        return promise;
+    }
+
+    @Nonnull
+    @Override
+    public <U> Promise<U> thenApplyDelayedAsync(@Nonnull Function<? super V, ? extends U> fn, long delay, @Nonnull TimeUnit unit) {
+        HelperPromise<U> promise = empty();
+        this.fut.whenComplete((value, t) -> {
+            if (t != null) {
+                promise.completeExceptionally(t);
+            } else {
+                executeDelayedAsync(new ApplyRunnable<>(promise, fn, value), delay, unit);
             }
         });
         return promise;
@@ -297,7 +474,7 @@ class HelperPromise<V> implements Promise<V> {
     @Override
     public <U> Promise<U> thenComposeSync(@Nonnull Function<? super V, ? extends Promise<U>> fn) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
@@ -311,7 +488,7 @@ class HelperPromise<V> implements Promise<V> {
     @Override
     public <U> Promise<U> thenComposeAsync(@Nonnull Function<? super V, ? extends Promise<U>> fn) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
@@ -323,13 +500,13 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public <U> Promise<U> thenComposeDelayedSync(@Nonnull Function<? super V, ? extends Promise<U>> fn, long delay) {
+    public <U> Promise<U> thenComposeDelayedSync(@Nonnull Function<? super V, ? extends Promise<U>> fn, long delayTicks) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
-                executeDelayedSync(new ComposeRunnable<>(promise, fn, value, true), delay);
+                executeDelayedSync(new ComposeRunnable<>(promise, fn, value, true), delayTicks);
             }
         });
         return promise;
@@ -337,13 +514,41 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public <U> Promise<U> thenComposeDelayedAsync(@Nonnull Function<? super V, ? extends Promise<U>> fn, long delay) {
+    public <U> Promise<U> thenComposeDelayedSync(@Nonnull Function<? super V, ? extends Promise<U>> fn, long delay, @Nonnull TimeUnit unit) {
         HelperPromise<U> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t != null) {
                 promise.completeExceptionally(t);
             } else {
-                executeDelayedAsync(new ComposeRunnable<>(promise, fn, value, false), delay);
+                executeDelayedSync(new ComposeRunnable<>(promise, fn, value, true), delay, unit);
+            }
+        });
+        return promise;
+    }
+
+    @Nonnull
+    @Override
+    public <U> Promise<U> thenComposeDelayedAsync(@Nonnull Function<? super V, ? extends Promise<U>> fn, long delayTicks) {
+        HelperPromise<U> promise = empty();
+        this.fut.whenComplete((value, t) -> {
+            if (t != null) {
+                promise.completeExceptionally(t);
+            } else {
+                executeDelayedAsync(new ComposeRunnable<>(promise, fn, value, false), delayTicks);
+            }
+        });
+        return promise;
+    }
+
+    @Nonnull
+    @Override
+    public <U> Promise<U> thenComposeDelayedAsync(@Nonnull Function<? super V, ? extends Promise<U>> fn, long delay, @Nonnull TimeUnit unit) {
+        HelperPromise<U> promise = empty();
+        this.fut.whenComplete((value, t) -> {
+            if (t != null) {
+                promise.completeExceptionally(t);
+            } else {
+                executeDelayedAsync(new ComposeRunnable<>(promise, fn, value, false), delay, unit);
             }
         });
         return promise;
@@ -353,7 +558,7 @@ class HelperPromise<V> implements Promise<V> {
     @Override
     public Promise<V> exceptionallySync(@Nonnull Function<Throwable, ? extends V> fn) {
         HelperPromise<V> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t == null) {
                 promise.complete(value);
             } else {
@@ -367,7 +572,7 @@ class HelperPromise<V> implements Promise<V> {
     @Override
     public Promise<V> exceptionallyAsync(@Nonnull Function<Throwable, ? extends V> fn) {
         HelperPromise<V> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t == null) {
                 promise.complete(value);
             } else {
@@ -379,13 +584,13 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public Promise<V> exceptionallyDelayedSync(@Nonnull Function<Throwable, ? extends V> fn, long delay) {
+    public Promise<V> exceptionallyDelayedSync(@Nonnull Function<Throwable, ? extends V> fn, long delayTicks) {
         HelperPromise<V> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t == null) {
                 promise.complete(value);
             } else {
-                executeDelayedSync(new ExceptionallyRunnable<>(promise, fn, t), delay);
+                executeDelayedSync(new ExceptionallyRunnable<>(promise, fn, t), delayTicks);
             }
         });
         return promise;
@@ -393,13 +598,41 @@ class HelperPromise<V> implements Promise<V> {
 
     @Nonnull
     @Override
-    public Promise<V> exceptionallyDelayedAsync(@Nonnull Function<Throwable, ? extends V> fn, long delay) {
+    public Promise<V> exceptionallyDelayedSync(@Nonnull Function<Throwable, ? extends V> fn, long delay, @Nonnull TimeUnit unit) {
         HelperPromise<V> promise = empty();
-        fut.whenComplete((value, t) -> {
+        this.fut.whenComplete((value, t) -> {
             if (t == null) {
                 promise.complete(value);
             } else {
-                executeDelayedAsync(new ExceptionallyRunnable<>(promise, fn, t), delay);
+                executeDelayedSync(new ExceptionallyRunnable<>(promise, fn, t), delay, unit);
+            }
+        });
+        return promise;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> exceptionallyDelayedAsync(@Nonnull Function<Throwable, ? extends V> fn, long delayTicks) {
+        HelperPromise<V> promise = empty();
+        this.fut.whenComplete((value, t) -> {
+            if (t == null) {
+                promise.complete(value);
+            } else {
+                executeDelayedAsync(new ExceptionallyRunnable<>(promise, fn, t), delayTicks);
+            }
+        });
+        return promise;
+    }
+
+    @Nonnull
+    @Override
+    public Promise<V> exceptionallyDelayedAsync(@Nonnull Function<Throwable, ? extends V> fn, long delay, @Nonnull TimeUnit unit) {
+        HelperPromise<V> promise = empty();
+        this.fut.whenComplete((value, t) -> {
+            if (t == null) {
+                promise.complete(value);
+            } else {
+                executeDelayedAsync(new ExceptionallyRunnable<>(promise, fn, t), delay, unit);
             }
         });
         return promise;
@@ -407,23 +640,44 @@ class HelperPromise<V> implements Promise<V> {
 
     /* delegating behaviour runnables */
 
+    private final class ThrowingSupplyRunnable implements Runnable, Delegate<Callable<V>> {
+        private final Callable<V> supplier;
+        private ThrowingSupplyRunnable(Callable<V> supplier) {
+            this.supplier = supplier;
+        }
+        @Override public Callable<V> getDelegate() { return this.supplier; }
+
+        @Override
+        public void run() {
+            if (HelperPromise.this.cancelled.get()) {
+                return;
+            }
+            try {
+                HelperPromise.this.fut.complete(this.supplier.call());
+            } catch (Throwable t) {
+                EXCEPTION_CONSUMER.accept(t);
+                HelperPromise.this.fut.completeExceptionally(t);
+            }
+        }
+    }
+
     private final class SupplyRunnable implements Runnable, Delegate<Supplier<V>> {
         private final Supplier<V> supplier;
         private SupplyRunnable(Supplier<V> supplier) {
             this.supplier = supplier;
         }
-        @Override public Supplier<V> getDelegate() { return supplier; }
+        @Override public Supplier<V> getDelegate() { return this.supplier; }
 
         @Override
         public void run() {
-            if (cancelled.get()) {
+            if (HelperPromise.this.cancelled.get()) {
                 return;
             }
             try {
-                fut.complete(supplier.get());
+                HelperPromise.this.fut.complete(this.supplier.get());
             } catch (Throwable t) {
-                Scheduler.EXCEPTION_CONSUMER.accept(t);
-                fut.completeExceptionally(t);
+                EXCEPTION_CONSUMER.accept(t);
+                HelperPromise.this.fut.completeExceptionally(t);
             }
         }
     }
@@ -437,18 +691,18 @@ class HelperPromise<V> implements Promise<V> {
             this.function = function;
             this.value = value;
         }
-        @Override public Function getDelegate() { return function; }
+        @Override public Function getDelegate() { return this.function; }
 
         @Override
         public void run() {
-            if (cancelled.get()) {
+            if (HelperPromise.this.cancelled.get()) {
                 return;
             }
             try {
-                promise.complete(function.apply(value));
+                this.promise.complete(this.function.apply(this.value));
             } catch (Throwable t) {
-                Scheduler.EXCEPTION_CONSUMER.accept(t);
-                promise.completeExceptionally(t);
+                EXCEPTION_CONSUMER.accept(t);
+                this.promise.completeExceptionally(t);
             }
         }
     }
@@ -464,27 +718,27 @@ class HelperPromise<V> implements Promise<V> {
             this.value = value;
             this.sync = sync;
         }
-        @Override public Function getDelegate() { return function; }
+        @Override public Function getDelegate() { return this.function; }
 
         @Override
         public void run() {
-            if (cancelled.get()) {
+            if (HelperPromise.this.cancelled.get()) {
                 return;
             }
             try {
-                Promise<U> p = function.apply(value);
+                Promise<U> p = this.function.apply(this.value);
                 if (p == null) {
-                    promise.complete(null);
+                    this.promise.complete(null);
                 } else {
-                    if (sync) {
-                        p.thenAcceptSync(promise::complete);
+                    if (this.sync) {
+                        p.thenAcceptSync(this.promise::complete);
                     } else {
-                        p.thenAcceptAsync(promise::complete);
+                        p.thenAcceptAsync(this.promise::complete);
                     }
                 }
             } catch (Throwable t) {
-                Scheduler.EXCEPTION_CONSUMER.accept(t);
-                promise.completeExceptionally(t);
+                EXCEPTION_CONSUMER.accept(t);
+                this.promise.completeExceptionally(t);
             }
         }
     }
@@ -498,18 +752,18 @@ class HelperPromise<V> implements Promise<V> {
             this.function = function;
             this.t = t;
         }
-        @Override public Function getDelegate() { return function; }
+        @Override public Function getDelegate() { return this.function; }
 
         @Override
         public void run() {
-            if (cancelled.get()) {
+            if (HelperPromise.this.cancelled.get()) {
                 return;
             }
             try {
-                promise.complete(function.apply(t));
+                this.promise.complete(this.function.apply(this.t));
             } catch (Throwable t) {
-                Scheduler.EXCEPTION_CONSUMER.accept(t);
-                promise.completeExceptionally(t);
+                EXCEPTION_CONSUMER.accept(t);
+                this.promise.completeExceptionally(t);
             }
         }
     }

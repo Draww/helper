@@ -25,9 +25,8 @@
 
 package me.lucko.helper.cooldown;
 
-import com.google.common.base.Preconditions;
-
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -50,8 +49,8 @@ public interface ComposedCooldownMap<I, O> {
      */
     @Nonnull
     static <I, O> ComposedCooldownMap<I, O> create(@Nonnull Cooldown base, @Nonnull Function<I, O> composeFunction) {
-        Preconditions.checkNotNull(base, "base");
-        Preconditions.checkNotNull(composeFunction, "composeFunction");
+        Objects.requireNonNull(base, "base");
+        Objects.requireNonNull(composeFunction, "composeFunction");
         return new ComposedCooldownMapImpl<>(base, composeFunction);
     }
 
@@ -64,7 +63,10 @@ public interface ComposedCooldownMap<I, O> {
     Cooldown getBase();
 
     /**
-     * Gets the internal cooldown instance associated with the given key
+     * Gets the internal cooldown instance associated with the given key.
+     *
+     * <p>The inline Cooldown methods in this class should be used to access the functionality of the cooldown as opposed
+     * to calling the methods directly via the instance returned by this method.</p>
      *
      * @param key the key
      * @return a cooldown instance
@@ -84,19 +86,37 @@ public interface ComposedCooldownMap<I, O> {
 
     /* methods from Cooldown */
 
-    boolean test(@Nonnull I key);
+    default boolean test(@Nonnull I key) {
+        return get(key).test();
+    }
 
-    boolean testSilently(@Nonnull I key);
+    default boolean testSilently(@Nonnull I key) {
+        return get(key).testSilently();
+    }
 
-    long elapsed(@Nonnull I key);
+    default long elapsed(@Nonnull I key) {
+        return get(key).elapsed();
+    }
 
-    void reset(@Nonnull I key);
+    default void reset(@Nonnull I key) {
+        get(key).reset();
+    }
 
-    long remainingMillis(@Nonnull I key);
+    default long remainingMillis(@Nonnull I key) {
+        return get(key).remainingMillis();
+    }
 
-    long remainingTime(@Nonnull I key, @Nonnull TimeUnit unit);
+    default long remainingTime(@Nonnull I key, @Nonnull TimeUnit unit) {
+        return get(key).remainingTime(unit);
+    }
 
     @Nonnull
-    OptionalLong getLastTested(@Nonnull I key);
+    default OptionalLong getLastTested(@Nonnull I key) {
+        return get(key).getLastTested();
+    }
+
+    default void setLastTested(@Nonnull I key, long time) {
+        get(key).setLastTested(time);
+    }
 
 }

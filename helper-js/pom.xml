@@ -7,7 +7,7 @@
     <parent>
         <artifactId>helper-parent</artifactId>
         <groupId>me.lucko</groupId>
-        <version>4.2.0</version>
+        <version>5.0.0</version>
     </parent>
 
     <artifactId>helper-js</artifactId>
@@ -18,6 +18,10 @@
     <description>JavaScript plugins using Nashorn.</description>
     <url>https://github.com/lucko/helper</url>
 
+    <properties>
+        <shade.pattern>me.lucko.helper.js.external.</shade.pattern>
+    </properties>
+
     <build>
         <defaultGoal>clean package</defaultGoal>
         <finalName>${project.name}</finalName>
@@ -27,13 +31,6 @@
                 <directory>src/main/resources</directory>
                 <includes>
                     <include>*.yml</include>
-                </includes>
-            </resource>
-            <resource>
-                <filtering>false</filtering>
-                <directory>src/main/resources</directory>
-                <includes>
-                    <include>header.js</include>
                 </includes>
             </resource>
             <resource>
@@ -68,6 +65,16 @@
                         <configuration>
                             <minimizeJar>false</minimizeJar>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <relocations>
+                                <relocation>
+                                    <pattern>io.github.classgraph</pattern>
+                                    <shadedPattern>${shade.pattern}classgraph</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>nonapi.io.github.classgraph</pattern>
+                                    <shadedPattern>${shade.pattern}classgraph.nonapi</shadedPattern>
+                                </relocation>
+                            </relocations>
                         </configuration>
                     </execution>
                 </executions>
@@ -116,7 +123,13 @@
         <dependency>
             <groupId>me.lucko</groupId>
             <artifactId>scriptcontroller</artifactId>
-            <version>1.0</version>
+            <version>1.1</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.classgraph</groupId>
+            <artifactId>classgraph</artifactId>
+            <version>4.6.9</version>
             <scope>compile</scope>
         </dependency>
 
@@ -124,7 +137,7 @@
         <dependency>
             <groupId>me.lucko</groupId>
             <artifactId>helper</artifactId>
-            <version>[4.2,4.3)</version>
+            <version>[5.0.0,6.0.0)</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

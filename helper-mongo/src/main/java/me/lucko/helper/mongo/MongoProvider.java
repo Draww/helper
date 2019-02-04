@@ -28,7 +28,7 @@ package me.lucko.helper.mongo;
 import javax.annotation.Nonnull;
 
 /**
- * Provides {@link HelperMongo} instances.
+ * Provides {@link Mongo} instances.
  */
 public interface MongoProvider {
 
@@ -38,7 +38,7 @@ public interface MongoProvider {
      * @return the global datasource.
      */
     @Nonnull
-    HelperMongo getDataSource();
+    Mongo getMongo();
 
     /**
      * Constructs a new datasource using the given credentials.
@@ -50,7 +50,7 @@ public interface MongoProvider {
      * @return a new datasource
      */
     @Nonnull
-    HelperMongo getDataSource(@Nonnull MongoDatabaseCredentials credentials);
+    Mongo getMongo(@Nonnull MongoDatabaseCredentials credentials);
 
     /**
      * Gets the global database credentials being used for the global datasource.

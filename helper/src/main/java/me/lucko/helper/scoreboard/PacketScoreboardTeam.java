@@ -30,7 +30,10 @@ import com.comphenix.protocol.events.PacketContainer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
-import me.lucko.helper.utils.Color;
+import me.lucko.helper.protocol.Protocol;
+import me.lucko.helper.reflect.MinecraftVersion;
+import me.lucko.helper.reflect.MinecraftVersions;
+import me.lucko.helper.text.Text;
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import org.bukkit.ChatColor;
@@ -44,6 +47,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -51,6 +55,9 @@ import java.util.Set;
  */
 @NonnullByDefault
 public class PacketScoreboardTeam implements ScoreboardTeam {
+
+    // anything >= v1.9 supports the collision rule in the update packet.
+    private static final boolean SUPPORTS_COLLISION_RULE = MinecraftVersion.getRuntimeVersion().isAfterOrEq(MinecraftVersions.v1_9);
 
     // the display name value in teams if limited to 32 chars
     private static final int MAX_NAME_LENGTH = 32;
@@ -70,8 +77,6 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
         return name.length() > MAX_TEAM_MEMBER_LENGTH ? name.substring(0, MAX_TEAM_MEMBER_LENGTH) : name;
     }
 
-    // the parent scoreboard
-    private final PacketScoreboard scoreboard;
     // the id of this team
     private final String id;
     // if players should be automatically subscribed
@@ -102,40 +107,37 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
     /**
      * Creates a new scoreboard team
      *
-     * @param scoreboard the parent scoreboard
      * @param id the id of this team
      * @param displayName the initial display name
      * @param autoSubscribe if players should be automatically subscribed
      */
-    public PacketScoreboardTeam(PacketScoreboard scoreboard, String id, String displayName, boolean autoSubscribe) {
-        Preconditions.checkNotNull(id, "id");
+    public PacketScoreboardTeam(String id, String displayName, boolean autoSubscribe) {
+        Objects.requireNonNull(id, "id");
         Preconditions.checkArgument(id.length() <= 16, "id cannot be longer than 16 characters");
 
-        this.scoreboard = Preconditions.checkNotNull(scoreboard, "scoreboard");
         this.id = id;
-        this.displayName = trimName(Color.colorize(Preconditions.checkNotNull(displayName, "displayName")));
+        this.displayName = trimName(Text.colorize(Objects.requireNonNull(displayName, "displayName")));
         this.autoSubscribe = autoSubscribe;
     }
 
     /**
      * Creates a new scoreboard team
      *
-     * @param scoreboard the parent scoreboard
      * @param id the id of this team
      * @param displayName the initial display name
      */
-    public PacketScoreboardTeam(PacketScoreboard scoreboard, String id, String displayName) {
-        this(scoreboard, id, displayName, true);
+    public PacketScoreboardTeam(String id, String displayName) {
+        this(id, displayName, true);
     }
 
     @Override
     public String getId() {
-        return id;
+        return this.id;
     }
 
     @Override
     public boolean shouldAutoSubscribe() {
-        return autoSubscribe;
+        return this.autoSubscribe;
     }
 
     @Override
@@ -145,58 +147,58 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
 
     @Override
     public String getDisplayName() {
-        return displayName;
+        return this.displayName;
     }
 
     @Override
     public void setDisplayName(String displayName) {
-        Preconditions.checkNotNull(displayName, "displayName");
-        displayName = trimName(Color.colorize(displayName));
+        Objects.requireNonNull(displayName, "displayName");
+        displayName = trimName(Text.colorize(displayName));
         if (this.displayName.equals(displayName)) {
             return;
         }
 
         this.displayName = displayName;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public String getPrefix() {
-        return prefix;
+        return this.prefix;
     }
 
     @Override
     public void setPrefix(String prefix) {
-        Preconditions.checkNotNull(prefix, "prefix");
-        prefix = trimPrefixSuffix(Color.colorize(prefix));
+        Objects.requireNonNull(prefix, "prefix");
+        prefix = trimPrefixSuffix(Text.colorize(prefix));
         if (this.prefix.equals(prefix)) {
             return;
         }
 
         this.prefix = prefix;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public String getSuffix() {
-        return suffix;
+        return this.suffix;
     }
 
     @Override
     public void setSuffix(String suffix) {
-        Preconditions.checkNotNull(suffix, "suffix");
-        suffix = trimPrefixSuffix(Color.colorize(suffix));
+        Objects.requireNonNull(suffix, "suffix");
+        suffix = trimPrefixSuffix(Text.colorize(suffix));
         if (this.suffix.equals(suffix)) {
             return;
         }
 
         this.suffix = suffix;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public boolean isAllowFriendlyFire() {
-        return allowFriendlyFire;
+        return this.allowFriendlyFire;
     }
 
     @Override
@@ -206,12 +208,12 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
         }
 
         this.allowFriendlyFire = allowFriendlyFire;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public boolean isCanSeeFriendlyInvisibles() {
-        return canSeeFriendlyInvisibles;
+        return this.canSeeFriendlyInvisibles;
     }
 
     @Override
@@ -221,96 +223,96 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
         }
 
         this.canSeeFriendlyInvisibles = canSeeFriendlyInvisibles;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public NameTagVisibility getNameTagVisibility() {
-        return nameTagVisibility;
+        return this.nameTagVisibility;
     }
 
     @Override
     public void setNameTagVisibility(NameTagVisibility nameTagVisibility) {
-        Preconditions.checkNotNull(nameTagVisibility, "nameTagVisibility");
+        Objects.requireNonNull(nameTagVisibility, "nameTagVisibility");
         if (this.nameTagVisibility == nameTagVisibility) {
             return;
         }
 
         this.nameTagVisibility = nameTagVisibility;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public CollisionRule getCollisionRule() {
-        return collisionRule;
+        return this.collisionRule;
     }
 
     @Override
     public void setCollisionRule(CollisionRule collisionRule) {
-        Preconditions.checkNotNull(collisionRule, "collisionRule");
+        Objects.requireNonNull(collisionRule, "collisionRule");
         if (this.collisionRule == collisionRule) {
             return;
         }
 
         this.collisionRule = collisionRule;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public ChatColor getColor() {
-        return color;
+        return this.color;
     }
 
     @Override
     public void setColor(ChatColor color) {
-        Preconditions.checkNotNull(color, "color");
+        Objects.requireNonNull(color, "color");
         if (this.color == color) {
             return;
         }
 
         this.color = color;
-        scoreboard.broadcastPacket(subscribed, newUpdatePacket());
+        Protocol.broadcastPacket(this.subscribed, newUpdatePacket());
     }
 
     @Override
     public boolean addPlayer(String player) {
-        Preconditions.checkNotNull(player, "player");
+        Objects.requireNonNull(player, "player");
         player = trimMember(player);
-        if (!players.add(player)) {
+        if (!this.players.add(player)) {
             return false;
         }
 
-        scoreboard.broadcastPacket(subscribed, newTeamMemberUpdatePacket(player, MemberAction.ADD));
+        Protocol.broadcastPacket(this.subscribed, newTeamMemberUpdatePacket(player, MemberAction.ADD));
         return true;
     }
 
     @Override
     public boolean removePlayer(String player) {
-        Preconditions.checkNotNull(player, "player");
+        Objects.requireNonNull(player, "player");
         player = trimMember(player);
-        if (!players.remove(player)) {
+        if (!this.players.remove(player)) {
             return false;
         }
 
-        scoreboard.broadcastPacket(subscribed, newTeamMemberUpdatePacket(player, MemberAction.REMOVE));
+        Protocol.broadcastPacket(this.subscribed, newTeamMemberUpdatePacket(player, MemberAction.REMOVE));
         return true;
     }
 
     @Override
     public boolean hasPlayer(String player) {
-        Preconditions.checkNotNull(player, "player");
-        return players.contains(trimMember(player));
+        Objects.requireNonNull(player, "player");
+        return this.players.contains(trimMember(player));
     }
 
     @Override
     public Set<String> getPlayers() {
-        return ImmutableSet.copyOf(players);
+        return ImmutableSet.copyOf(this.players);
     }
 
     @Override
     public void subscribe(Player player) {
-        scoreboard.sendPacket(newCreatePacket(), player);
-        subscribed.add(player);
+        Protocol.sendPacket(player, newCreatePacket());
+        this.subscribed.add(player);
     }
 
     @Override
@@ -320,17 +322,17 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
 
     @Override
     public void unsubscribe(Player player, boolean fast) {
-        if (!subscribed.remove(player) || fast) {
+        if (!this.subscribed.remove(player) || fast) {
             return;
         }
 
-        scoreboard.sendPacket(newRemovePacket(), player);
+        Protocol.sendPacket(player, newRemovePacket());
     }
 
     @Override
     public void unsubscribeAll() {
-        scoreboard.broadcastPacket(subscribed, newRemovePacket());
-        subscribed.clear();
+        Protocol.broadcastPacket(this.subscribed, newRemovePacket());
+        this.subscribed.clear();
     }
 
     private PacketContainer newCreatePacket() {
@@ -397,8 +399,10 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
         // set nametag visibility - String Enum (32)
         packet.getStrings().write(4, getNameTagVisibility().getProtocolName());
 
-        // set collision rule - String Enum (32)
-        packet.getStrings().write(5, getCollisionRule().getProtocolName());
+        if (SUPPORTS_COLLISION_RULE) {
+            // set collision rule - String Enum (32)
+            packet.getStrings().write(5, getCollisionRule().getProtocolName());
+        }
 
         // set color - byte - For colors, the same Chat colors (0-15). -1 indicates RESET/no color.
         packet.getIntegers().write(0, COLOR_CODES.getOrDefault(getColor(), -1));
@@ -449,7 +453,7 @@ public class PacketScoreboardTeam implements ScoreboardTeam {
         }
 
         public int getCode() {
-            return code;
+            return this.code;
         }
     }
 

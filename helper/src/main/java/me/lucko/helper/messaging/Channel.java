@@ -28,8 +28,8 @@ package me.lucko.helper.messaging;
 import com.google.common.reflect.TypeToken;
 
 import me.lucko.helper.interfaces.TypeAware;
-
-import java.util.concurrent.CompletableFuture;
+import me.lucko.helper.messaging.codec.Codec;
+import me.lucko.helper.promise.Promise;
 
 import javax.annotation.Nonnull;
 
@@ -60,6 +60,14 @@ public interface Channel<T> extends TypeAware<T> {
     TypeToken<T> getType();
 
     /**
+     * Gets the channels codec.
+     *
+     * @return the codec
+     */
+    @Nonnull
+    Codec<T> getCodec();
+
+    /**
      * Creates a new {@link ChannelAgent} for this channel.
      *
      * @return a new channel agent.
@@ -68,17 +76,29 @@ public interface Channel<T> extends TypeAware<T> {
     ChannelAgent<T> newAgent();
 
     /**
+     * Creates a new {@link ChannelAgent} for this channel, and immediately
+     * adds the given {@link ChannelListener} to it.
+     *
+     * @param listener the listener to register
+     * @return the resultant agent
+     */
+    @Nonnull
+    default ChannelAgent<T> newAgent(ChannelListener<T> listener) {
+        ChannelAgent<T> agent = newAgent();
+        agent.addListener(listener);
+        return agent;
+    }
+
+    /**
      * Sends a new message to the channel.
      *
      * <p>This method will return immediately, and the future will be completed
      * once the message has been sent.</p>
      *
-     * <p>The future will return true if the message was sent successfully.</p>
-     *
      * @param message the message to dispatch
-     * @return a future which will complete when the message has sent.
+     * @return a promise which will complete when the message has sent.
      */
     @Nonnull
-    CompletableFuture<Boolean> sendMessage(@Nonnull T message);
+    Promise<Void> sendMessage(@Nonnull T message);
 
 }

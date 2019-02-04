@@ -26,7 +26,6 @@
 package me.lucko.helper.plugin;
 
 import me.lucko.helper.terminable.TerminableConsumer;
-import me.lucko.helper.terminable.composite.CompositeTerminableConsumer;
 
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -41,7 +40,7 @@ import java.io.File;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public interface HelperPlugin extends Plugin, TerminableConsumer, CompositeTerminableConsumer {
+public interface HelperPlugin extends Plugin, TerminableConsumer {
 
     /**
      * Register a listener with the server.
@@ -73,7 +72,7 @@ public interface HelperPlugin extends Plugin, TerminableConsumer, CompositeTermi
      * @param <T> the class type
      * @return the service
      */
-    @Nullable
+    @Nonnull
     <T> T getService(@Nonnull Class<T> service);
 
     /**
@@ -98,6 +97,14 @@ public interface HelperPlugin extends Plugin, TerminableConsumer, CompositeTermi
      */
     @Nonnull
     <T> T provideService(@Nonnull Class<T> clazz, @Nonnull T instance);
+
+    /**
+     * Gets if a given plugin is enabled.
+     *
+     * @param name the name of the plugin
+     * @return if the plugin is enabled
+     */
+    boolean isPluginPresent(@Nonnull String name);
 
     /**
      * Gets a plugin instance for the given plugin name
@@ -142,6 +149,16 @@ public interface HelperPlugin extends Plugin, TerminableConsumer, CompositeTermi
      */
     @Nonnull
     ConfigurationNode loadConfigNode(@Nonnull String file);
+
+    /**
+     * Populates a config object.
+     *
+     * @param file the name of the file
+     * @param configObject the config object
+     * @param <T> the config object type
+     */
+    @Nonnull
+    <T> T setupConfig(@Nonnull String file, @Nonnull T configObject);
 
     /**
      * Gets the plugin's class loader

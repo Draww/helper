@@ -25,41 +25,40 @@
 
 package me.lucko.helper.event.functional.merged;
 
-import com.google.common.base.Preconditions;
-
 import me.lucko.helper.event.MergedSubscription;
 import me.lucko.helper.internal.LoaderUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
 
 class MergedHandlerListImpl<T> implements MergedHandlerList<T> {
-    private final MergedBuilder<T> builder;
+    private final MergedSubscriptionBuilderImpl<T> builder;
     private final List<BiConsumer<MergedSubscription<T>, ? super T>> handlers = new ArrayList<>(1);
 
-    MergedHandlerListImpl(@Nonnull MergedBuilder<T> builder) {
+    MergedHandlerListImpl(@Nonnull MergedSubscriptionBuilderImpl<T> builder) {
         this.builder = builder;
     }
 
     @Nonnull
     @Override
     public MergedHandlerList<T> biConsumer(@Nonnull BiConsumer<MergedSubscription<T>, ? super T> handler) {
-        Preconditions.checkNotNull(handler, "handler");
-        handlers.add(handler);
+        Objects.requireNonNull(handler, "handler");
+        this.handlers.add(handler);
         return this;
     }
 
     @Nonnull
     @Override
     public MergedSubscription<T> register() {
-        if (handlers.isEmpty()) {
+        if (this.handlers.isEmpty()) {
             throw new IllegalStateException("No handlers have been registered");
         }
 
-        HelperMergedEventListener<T> listener = new HelperMergedEventListener<>(builder, handlers);
+        HelperMergedEventListener<T> listener = new HelperMergedEventListener<>(this.builder, this.handlers);
         listener.register(LoaderUtils.getPlugin());
         return listener;
     }

@@ -25,8 +25,6 @@
 
 package me.lucko.helper.function;
 
-import com.google.common.base.Preconditions;
-
 import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import java.util.Collection;
@@ -53,8 +51,8 @@ public final class Predicates {
      * @return a composed predicate
      */
     public static <A, B> Predicate<A> compose(Function<A, ? extends B> function, Predicate<B> predicate) {
-        Preconditions.checkNotNull(function, "function");
-        Preconditions.checkNotNull(predicate, "predicate");
+        Objects.requireNonNull(function, "function");
+        Objects.requireNonNull(predicate, "predicate");
         return input -> predicate.test(function.apply(input));
     }
 
@@ -249,10 +247,27 @@ public final class Predicates {
     }
 
     private enum ObjectPredicate implements Predicate<Object> {
-        ALWAYS_TRUE { public boolean test(Object o) { return true; } },
-        ALWAYS_FALSE { public boolean test(Object o) { return false; } },
-        IS_NULL { public boolean test(Object o) { return o == null; } },
-        NOT_NULL { public boolean test(Object o) { return o != null; } };
+        ALWAYS_TRUE {
+            @Override public boolean test(Object o) { return true; }
+            @Override public Predicate<? super Object> and(Predicate<? super Object> other) { return other; }
+            @Override public Predicate<? super Object> or(Predicate<? super Object> other) { return this; }
+            @Override public Predicate<? super Object> negate() { return ALWAYS_FALSE; }
+        },
+        ALWAYS_FALSE {
+            @Override public boolean test(Object o) { return false; }
+            @Override public Predicate<? super Object> and(Predicate<? super Object> other) { return this; }
+            @Override public Predicate<? super Object> or(Predicate<? super Object> other) { return other; }
+            @Override public Predicate<? super Object> negate() { return ALWAYS_TRUE; }
+        },
+
+        IS_NULL {
+            @Override public boolean test(Object o) { return o == null; }
+            @Override public Predicate<? super Object> negate() { return NOT_NULL; }
+        },
+        NOT_NULL {
+            @Override public boolean test(Object o) { return o != null; }
+            @Override public Predicate<? super Object> negate() { return IS_NULL; }
+        };
 
         <T> Predicate<T> cast() {
             //noinspection unchecked

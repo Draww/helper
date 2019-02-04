@@ -35,6 +35,7 @@ import me.lucko.helper.utils.annotation.NonnullByDefault;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -48,8 +49,8 @@ public class MenuPopulator {
     protected List<Integer> remainingSlots;
 
     public MenuPopulator(Gui gui, MenuScheme scheme) {
-        Preconditions.checkNotNull(gui, "gui");
-        Preconditions.checkNotNull(scheme, "scheme");
+        Objects.requireNonNull(gui, "gui");
+        Objects.requireNonNull(scheme, "scheme");
 
         this.remainingSlots = scheme.getMaskedIndexes();
         Preconditions.checkArgument(this.remainingSlots.size() > 0, "no slots in scheme");
@@ -59,8 +60,8 @@ public class MenuPopulator {
     }
 
     public MenuPopulator(Gui gui, List<Integer> slots) {
-        Preconditions.checkNotNull(gui, "gui");
-        Preconditions.checkNotNull(slots, "slots");
+        Objects.requireNonNull(gui, "gui");
+        Objects.requireNonNull(slots, "slots");
 
         Preconditions.checkArgument(slots.size() > 0, "no slots in list");
 
@@ -105,13 +106,13 @@ public class MenuPopulator {
     }
 
     public boolean tryConsume(Consumer<Slot> action) {
-        Preconditions.checkNotNull(action, "action");
-        if (remainingSlots.isEmpty()) {
+        Objects.requireNonNull(action, "action");
+        if (this.remainingSlots.isEmpty()) {
             return false;
         }
 
-        int slot = remainingSlots.remove(0);
-        action.accept(gui.getSlot(slot));
+        int slot = this.remainingSlots.remove(0);
+        action.accept(this.gui.getSlot(slot));
         return true;
     }
 
@@ -152,7 +153,7 @@ public class MenuPopulator {
      * @return the number of remaining slots
      */
     public int getRemainingSpace() {
-        return remainingSlots.size();
+        return this.remainingSlots.size();
     }
 
     /**
@@ -161,7 +162,7 @@ public class MenuPopulator {
      * @return if there is more space
      */
     public boolean hasSpace() {
-        return !remainingSlots.isEmpty();
+        return !this.remainingSlots.isEmpty();
     }
 
     public MenuPopulator copy() {

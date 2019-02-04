@@ -25,7 +25,6 @@
 
 package me.lucko.helper.menu.paginated;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import me.lucko.helper.item.ItemStackBuilder;
@@ -39,6 +38,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -157,63 +157,63 @@ public class PaginatedGuiBuilder {
     }
 
     public PaginatedGuiBuilder scheme(MenuScheme scheme) {
-        this.scheme = Preconditions.checkNotNull(scheme, "scheme");
+        this.scheme = Objects.requireNonNull(scheme, "scheme");
         return this;
     }
 
     public PaginatedGuiBuilder nextPageItem(Function<PageInfo, ItemStack> nextPageItem) {
-        this.nextPageItem = Preconditions.checkNotNull(nextPageItem, "nextPageItem");
+        this.nextPageItem = Objects.requireNonNull(nextPageItem, "nextPageItem");
         return this;
     }
 
     public PaginatedGuiBuilder previousPageItem(Function<PageInfo, ItemStack> previousPageItem) {
-        this.previousPageItem = Preconditions.checkNotNull(previousPageItem, "previousPageItem");
+        this.previousPageItem = Objects.requireNonNull(previousPageItem, "previousPageItem");
         return this;
     }
 
     public int getLines() {
-        return lines;
+        return this.lines;
     }
 
     public String getTitle() {
-        return title;
+        return this.title;
     }
 
     public List<Integer> getItemSlots() {
-        return itemSlots;
+        return this.itemSlots;
     }
 
     public int getNextPageSlot() {
-        return nextPageSlot;
+        return this.nextPageSlot;
     }
 
     public int getPreviousPageSlot() {
-        return previousPageSlot;
+        return this.previousPageSlot;
     }
 
     public MenuScheme getScheme() {
-        return scheme;
+        return this.scheme;
     }
 
     public Function<PageInfo, ItemStack> getNextPageItem() {
-        return nextPageItem;
+        return this.nextPageItem;
     }
 
     public Function<PageInfo, ItemStack> getPreviousPageItem() {
-        return previousPageItem;
+        return this.previousPageItem;
     }
 
     public PaginatedGui build(Player player, Function<PaginatedGui, List<Item>> content) {
-        Preconditions.checkNotNull(player, "player");
-        Preconditions.checkNotNull(content, "content");
-        Preconditions.checkNotNull(lines, "lines");
-        Preconditions.checkNotNull(title, "title");
-        Preconditions.checkNotNull(itemSlots, "itemSlots");
-        Preconditions.checkNotNull(nextPageSlot, "nextPageSlot");
-        Preconditions.checkNotNull(previousPageSlot, "previousPageSlot");
-        Preconditions.checkNotNull(scheme, "scheme");
-        Preconditions.checkNotNull(nextPageItem, "nextPageItem");
-        Preconditions.checkNotNull(previousPageItem, "previousPageItem");
+        Objects.requireNonNull(player, "player");
+        Objects.requireNonNull(content, "content");
+        Objects.requireNonNull(this.lines, "lines");
+        Objects.requireNonNull(this.title, "title");
+        Objects.requireNonNull(this.itemSlots, "itemSlots");
+        Objects.requireNonNull(this.nextPageSlot, "nextPageSlot");
+        Objects.requireNonNull(this.previousPageSlot, "previousPageSlot");
+        Objects.requireNonNull(this.scheme, "scheme");
+        Objects.requireNonNull(this.nextPageItem, "nextPageItem");
+        Objects.requireNonNull(this.previousPageItem, "previousPageItem");
 
         return new PaginatedGui(content, player, this);
     }

@@ -38,6 +38,8 @@ import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -60,29 +62,29 @@ public final class ChunkPosition implements GsonSerializable {
     }
 
     public static ChunkPosition of(int x, int z, String world) {
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(world, "world");
         return new ChunkPosition(x, z, world);
     }
 
     public static ChunkPosition of(int x, int z, World world) {
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(world, "world");
         return of(x, z, world.getName());
     }
 
     public static ChunkPosition of(Vector2i vector, String world) {
-        Preconditions.checkNotNull(vector, "vector");
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(vector, "vector");
+        Objects.requireNonNull(world, "world");
         return of(vector.getX(), vector.getY(), world);
     }
 
     public static ChunkPosition of(Vector2i vector, World world) {
-        Preconditions.checkNotNull(vector, "vector");
-        Preconditions.checkNotNull(world, "world");
+        Objects.requireNonNull(vector, "vector");
+        Objects.requireNonNull(world, "world");
         return of(vector.getX(), vector.getY(), world);
     }
 
     public static ChunkPosition of(Chunk location) {
-        Preconditions.checkNotNull(location, "location");
+        Objects.requireNonNull(location, "location");
         return of(location.getX(), location.getZ(), location.getWorld().getName());
     }
 
@@ -109,25 +111,33 @@ public final class ChunkPosition implements GsonSerializable {
     }
 
     public Vector2i toVector() {
-        return new Vector2i(x, z);
+        return new Vector2i(this.x, this.z);
     }
 
     public synchronized Chunk toChunk() {
-        return Helper.world(world).get().getChunkAt(x, z);
+        return Helper.world(this.world).get().getChunkAt(this.x, this.z);
+    }
+
+    public boolean contains(BlockPosition block) {
+        return equals(block.toChunk());
+    }
+
+    public boolean contains(Position position) {
+        return equals(position.floor().toChunk());
     }
 
     public BlockPosition getBlock(int x, int y, int z) {
-        return BlockPosition.of((this.x << 4) | (x & 0xF), y, (this.z << 4) | (z & 0xF), world);
+        return BlockPosition.of((this.x << 4) | (x & 0xF), y, (this.z << 4) | (z & 0xF), this.world);
     }
 
     public ChunkPosition getRelative(BlockFace face) {
         Preconditions.checkArgument(face != BlockFace.UP && face != BlockFace.DOWN, "invalid face");
-        return ChunkPosition.of(x + face.getModX(), z + face.getModZ(), world);
+        return ChunkPosition.of(this.x + face.getModX(), this.z + face.getModZ(), this.world);
     }
 
     public ChunkPosition getRelative(BlockFace face, int distance) {
         Preconditions.checkArgument(face != BlockFace.UP && face != BlockFace.DOWN, "invalid face");
-        return ChunkPosition.of(x + (face.getModX() * distance), z + (face.getModZ() * distance), world);
+        return ChunkPosition.of(this.x + (face.getModX() * distance), this.z + (face.getModZ() * distance), this.world);
     }
 
     public ChunkPosition add(Vector2i vector2i) {
@@ -135,7 +145,7 @@ public final class ChunkPosition implements GsonSerializable {
     }
 
     public ChunkPosition add(int x, int z) {
-        return ChunkPosition.of(this.x + x, this.z + z, world);
+        return ChunkPosition.of(this.x + x, this.z + z, this.world);
     }
 
     public ChunkPosition subtract(Vector2i vector2i) {
@@ -150,9 +160,9 @@ public final class ChunkPosition implements GsonSerializable {
     @Override
     public JsonObject serialize() {
         return JsonBuilder.object()
-                .add("x", x)
-                .add("z", z)
-                .add("world", world)
+                .add("x", this.x)
+                .add("z", this.z)
+                .add("world", this.world)
                 .build();
     }
 

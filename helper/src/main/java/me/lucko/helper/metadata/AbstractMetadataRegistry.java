@@ -25,11 +25,11 @@
 
 package me.lucko.helper.metadata;
 
-import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -53,20 +53,20 @@ public class AbstractMetadataRegistry<T> implements MetadataRegistry<T> {
     @Nonnull
     @Override
     public MetadataMap provide(@Nonnull T id) {
-        Preconditions.checkNotNull(id, "id");
-        return cache.getUnchecked(id);
+        Objects.requireNonNull(id, "id");
+        return this.cache.getUnchecked(id);
     }
 
     @Nonnull
     @Override
     public Optional<MetadataMap> get(@Nonnull T id) {
-        Preconditions.checkNotNull(id, "id");
-        return Optional.ofNullable(cache.getIfPresent(id));
+        Objects.requireNonNull(id, "id");
+        return Optional.ofNullable(this.cache.getIfPresent(id));
     }
 
     @Override
     public void remove(@Nonnull T id) {
-        MetadataMap map = cache.asMap().remove(id);
+        MetadataMap map = this.cache.asMap().remove(id);
         if (map != null) {
             map.clear();
         }
@@ -75,7 +75,7 @@ public class AbstractMetadataRegistry<T> implements MetadataRegistry<T> {
     @Override
     public void cleanup() {
         // MetadataMap#isEmpty also removes expired values
-        cache.asMap().values().removeIf(MetadataMap::isEmpty);
+        this.cache.asMap().values().removeIf(MetadataMap::isEmpty);
     }
 
     private static final class Loader<T> extends CacheLoader<T, MetadataMap> {

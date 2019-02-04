@@ -25,24 +25,17 @@
 
 package me.lucko.helper.internal;
 
-import com.google.common.reflect.TypeToken;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonNull;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-
-import me.lucko.helper.gson.GsonSerializable;
-import me.lucko.helper.gson.GsonSerializableConfigurateProxy;
-import me.lucko.helper.gson.configurate.JsonArraySerializer;
-import me.lucko.helper.gson.configurate.JsonNullSerializer;
-import me.lucko.helper.gson.configurate.JsonObjectSerializer;
-import me.lucko.helper.gson.configurate.JsonPrimitiveSerializer;
+import me.lucko.helper.Helper;
+import me.lucko.helper.plugin.HelperPlugin;
 
 import org.bukkit.Bukkit;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import ninja.leaping.configurate.objectmapping.serialize.TypeSerializerCollection;
-import ninja.leaping.configurate.objectmapping.serialize.TypeSerializers;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -50,21 +43,44 @@ import javax.annotation.Nonnull;
  * Provides the instance which loaded the helper classes into the server
  */
 public final class LoaderUtils {
-    private static JavaPlugin plugin = null;
+    private static HelperPlugin plugin = null;
     private static Thread mainThread = null;
 
     @Nonnull
-    public static synchronized JavaPlugin getPlugin() {
+    public static synchronized HelperPlugin getPlugin() {
         if (plugin == null) {
-            plugin = JavaPlugin.getProvidingPlugin(LoaderUtils.class);
+            JavaPlugin pl = JavaPlugin.getProvidingPlugin(LoaderUtils.class);
+            if (!(pl instanceof HelperPlugin)) {
+                throw new IllegalStateException("helper providing plugin does not implement HelperPlugin: " + pl.getClass().getName());
+            }
+            plugin = (HelperPlugin) pl;
 
-            String packageName = LoaderUtils.class.getPackage().getName();
-            packageName = packageName.substring(0, packageName.length() - ".internal".length());
-            Bukkit.getLogger().info("[helper] helper (" + packageName + ") bound to plugin " + plugin.getName() + " - " + plugin.getClass().getName());
+            String pkg = LoaderUtils.class.getPackage().getName();
+            pkg = pkg.substring(0, pkg.length() - ".internal".length());
+
+            Bukkit.getLogger().info("[helper] helper (" + pkg + ") bound to plugin " + plugin.getName() + " - " + plugin.getClass().getName());
 
             setup();
         }
+
         return plugin;
+    }
+
+    public static Set<Plugin> getHelperImplementationPlugins() {
+        return Stream.concat(
+                Stream.<Plugin>of(getPlugin()),
+                Arrays.stream(Helper.plugins().getPlugins())
+                        .filter(pl -> pl.getClass().isAnnotationPresent(HelperImplementationPlugin.class))
+        ).collect(Collectors.toSet());
+    }
+
+    public static Set<HelperPlugin> getHelperPlugins() {
+        return Stream.concat(
+                Stream.of(getPlugin()),
+                Arrays.stream(Helper.plugins().getPlugins())
+                        .filter(pl -> pl instanceof HelperPlugin)
+                        .map(pl -> (HelperPlugin) pl)
+        ).collect(Collectors.toSet());
     }
 
     @Nonnull
@@ -82,18 +98,6 @@ public final class LoaderUtils {
 
         // cache main thread in this class
         getMainThread();
-
-        // register configurate serializers
-
-        TypeSerializerCollection defs = TypeSerializers.getDefaultSerializers();
-
-        defs.registerType(TypeToken.of(JsonArray.class), JsonArraySerializer.INSTANCE);
-        defs.registerType(TypeToken.of(JsonObject.class), JsonObjectSerializer.INSTANCE);
-        defs.registerType(TypeToken.of(JsonPrimitive.class), JsonPrimitiveSerializer.INSTANCE);
-        defs.registerType(TypeToken.of(JsonNull.class), JsonNullSerializer.INSTANCE);
-
-        defs.registerType(TypeToken.of(GsonSerializable.class), GsonSerializableConfigurateProxy.INSTANCE);
-
     }
 
     private LoaderUtils() {
