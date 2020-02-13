@@ -125,7 +125,7 @@ public final class Tps implements GsonSerializable {
     }
 
     public String toFormattedString() {
-        return format(this.avg1) + ", " + format(this.avg5) + ", " + format(this.avg15);
+        return String.join(", ", format(this.avg1), format(this.avg5), format(this.avg15));
     }
 
     public static String format(double tps) {
@@ -137,10 +137,14 @@ public final class Tps implements GsonSerializable {
         } else {
             sb.append(ChatColor.RED);
         }
+
+        sb.append(Math.min(Math.round(tps * 100.0) / 100.0, 20.0));
+
         if (tps > 20.0) {
             sb.append('*');
         }
-        return sb.append(Math.min(Math.round(tps * 100.0) / 100.0, 20.0)).toString();
+
+        return sb.toString();
     }
 
     @Nonnull

@@ -12,7 +12,7 @@
 
     <artifactId>helper-sql</artifactId>
     <packaging>jar</packaging>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
 
     <name>helper-sql</name>
     <description>Provides SQL datasources using HikariCP.</description>
@@ -69,6 +69,7 @@
                                 <includes>
                                     <include>com.zaxxer:HikariCP</include>
                                     <include>org.mariadb.jdbc:mariadb-java-client</include>
+                                    <include>me.lucko:sql-streams</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
@@ -79,6 +80,10 @@
                                 <relocation>
                                     <pattern>org.mariadb</pattern>
                                     <shadedPattern>${shade.pattern}mariadb</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>be.bendem.sqlstreams</pattern>
+                                    <shadedPattern>me.lucko.helper.sql.streams</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>
@@ -141,9 +146,15 @@
 
         <!-- helper-sql related dependencies -->
         <dependency>
+            <groupId>me.lucko</groupId>
+            <artifactId>sql-streams</artifactId>
+            <version>1.0.0</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
-            <version>3.3.0</version>
+            <version>3.3.1</version>
             <scope>compile</scope>
             <optional>true</optional>
             <exclusions>
@@ -156,7 +167,14 @@
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
-            <version>2.3.0</version>
+            <version>2.4.1</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>RELEASE</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
